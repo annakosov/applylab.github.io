@@ -175,4 +175,10 @@ jQuery( document ).ready(function( $ ) {
             j.preventDefault();
         });
  
+ 
+});
+$(document).ready(function(){
+  $('[data-toggle="tooltip"]').tooltip({
+	  placement : 'bottom'
+	  });   
 });
