@@ -92,6 +92,7 @@ a.filled-button:hover {
 
 .profile-pic {
 	vertical-align:middle;
+	max-height: fill-available;
 }
 .helper {
     display: inline-block;
