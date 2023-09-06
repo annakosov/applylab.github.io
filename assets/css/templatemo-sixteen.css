@@ -274,7 +274,6 @@ header .navbar {
     -moz-transition: all .3s ease 0s;
     -o-transition: all .3s ease 0s;
     transition: all .3s ease 0s;
-	cursor: pointer;
 }
 .navbar .navbar-brand h2 em {
 	font-style: normal;
@@ -1067,7 +1066,7 @@ footer .inner-content p a {
 	.navbar:after {
 		display: none;
 	}
-	.navbarResponsive {
+	#navbarResponsive {
 	    z-index: 99999;
 	    position: absolute;
 	    top: 80px;
