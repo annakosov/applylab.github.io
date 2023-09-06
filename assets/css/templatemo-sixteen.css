@@ -108,6 +108,9 @@ a.filled-button:hover {
 	background-image: url(../images/people-heading.jpg);
 }
 
+.pets-heading {
+	background-image: url(../images/cat_collage_bg.jpg);
+}
 .contact-heading {
 	background-image: url(../images/contact-heading.jpg);
 }
@@ -124,16 +127,16 @@ a.filled-button:hover {
 }
 
 .page-heading .text-content h4 {
-	color: #f33f3f;
-	font-size: 32px;
+	color: #ff0000;
+	font-size: 40px;
 	text-transform: uppercase;
 	font-weight: 700;
 	margin-bottom: 15px;
 }
 
 .page-heading .text-content h2 {
-	color: #fff;
-	font-size: 62px;
+	color: #fffbfb;
+	font-size: 82px;
 	text-transform: uppercase;
 	letter-spacing: 5px;
 }
@@ -147,7 +150,7 @@ a.filled-button:hover {
   bottom: 0;
   position: fixed;
   z-index: 9999999;
-  color: #fff;
+  color: #000000;
 }
 
 #preloader .jumper {
