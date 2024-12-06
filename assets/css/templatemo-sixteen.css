@@ -291,7 +291,7 @@ header .navbar {
 	text-align: center;
 }
 .navbar .navbar-nav .nav-item {
-	margin: 0px 12px;
+	margin: 0px 11px;
 }
 .navbar .navbar-nav a.nav-link {
 	text-transform: capitalize;
