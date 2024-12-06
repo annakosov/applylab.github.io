@@ -120,6 +120,9 @@ a.filled-button:hover {
 .press-heading {
 	background-image: url(../images/press-heading.png);
 }
+.outreach-heading {
+	background-image: url(../images/coverphotoforoutreach.jpg);
+}
 .page-heading {
 	padding: 210px 0px 130px 0px;
 	text-align: center;
@@ -265,6 +268,7 @@ header .navbar {
 	float: 	left;
 	margin-top: -12px;
 	outline: none;
+
 }
 .navbar .navbar-brand h2 {
 	color: #fff;
@@ -287,7 +291,7 @@ header .navbar {
 	text-align: center;
 }
 .navbar .navbar-nav .nav-item {
-	margin: 0px 15px;
+	margin: 0px 12px;
 }
 .navbar .navbar-nav a.nav-link {
 	text-transform: capitalize;
