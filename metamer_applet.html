@@ -285,7 +285,6 @@ if(m>0) rgb=rgb.map(v=>v/m);
 rgb=rgb.map(v=>v*lum);
 rgb=rgb.map(v=>Math.sqrt(v));
 rgb=rgb.map(v=>Math.min(v,1));
-console.log(L[10],M[10],S[10])
 updateUI(rgb);
 
 }
