@@ -185,7 +185,19 @@ else if(w<580){r=(w-510)/(580-510);g=1;}
 else if(w<645){r=1;g=-(w-645)/(645-580);}
 else{r=1;}
 
-return[r,g,b];
+// edge intensity falloff
+let factor;
+//
+// if(w>700 || w<380)
+// factor=0;
+// else if(w>645)
+// factor=0.3+0.7*(700-w)/(700-645);
+// else if(w<420)
+// factor=0.3+0.7*(w-380)/(420-380);
+// else
+factor=1;
+
+return [r*factor,g*factor,b*factor];
 
 }
 
@@ -249,14 +261,14 @@ computeColor();
 function computeColor(){
 
 let Lr=0,Mr=0,Sr=0;
-
+let scaleFactor = 1.5
 for(let i=0;i<N;i++){
 
 let v=spectrum[i];
 
-Lr+=v*L[i];
-Mr+=v*M[i];
-Sr+=v*S[i];
+Lr+=v*L[i]*scaleFactor;
+Mr+=v*M[i]*scaleFactor;
+Sr+=v*S[i]*scaleFactor;
 
 }
 
@@ -285,19 +297,23 @@ if(m>0) rgb=rgb.map(v=>v/m);
 rgb=rgb.map(v=>v*lum);
 rgb=rgb.map(v=>Math.sqrt(v));
 rgb=rgb.map(v=>Math.min(v,1));
-updateUI(rgb);
+updateUI([Lr,Mr,Sr],scaleFactor);
 
 }
 
 
-function updateUI(rgb){
+function updateUI(rgb,scaleFactor){
 
 document.getElementById("patch"+id).style.background=
 `rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
+let rgbScaled = [0,0,0]
+for(let i=0;i<3;i++){
+  rgbScaled[i] = rgb[i]/scaleFactor
+}
 
-document.getElementById("rbar"+id).style.width=(rgb[0]*100)+"%";
-document.getElementById("gbar"+id).style.width=(rgb[1]*100)+"%";
-document.getElementById("bbar"+id).style.width=(rgb[2]*100)+"%";
+document.getElementById("rbar"+id).style.width=(rgbScaled[0]*100)+"%";
+document.getElementById("gbar"+id).style.width=(rgbScaled[1]*100)+"%";
+document.getElementById("bbar"+id).style.width=(rgbScaled[2]*100)+"%";
 
 }
 
