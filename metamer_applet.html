@@ -2,117 +2,178 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Spectrum Drawer</title>
+<title>Metamer Spectrum Drawer</title>
 
 <style>
+
 body{
 font-family:sans-serif;
+font-size:18pt;
 margin:20px;
 }
 
-#layout{
+.demo{
 display:flex;
-gap:30px;
+gap:40px;
+margin-bottom:70px;
 }
 
-#right{
-width:220px;
+canvas{
+border:1px solid #777;
+}
+
+.right{
 display:flex;
 flex-direction:column;
 align-items:center;
+width:260px;
 }
 
-#patch{
+.patchTitle{
+margin-bottom:10px;
+}
+
+.patch{
 width:160px;
 height:160px;
 border-radius:50%;
 background:black;
-margin-bottom:20px;
 border:1px solid #999;
+margin-bottom:25px;
 }
 
 .bar{
 width:160px;
-height:20px;
-margin:4px 0;
+height:22px;
 background:#ddd;
+margin:8px 0;
 position:relative;
 }
 
-.barFill{
+.fill{
 height:100%;
 width:0%;
 }
 
-#R{background:red;}
-#G{background:green;}
-#B{background:blue;}
-
-canvas{
-border:1px solid #888;
+.barLabel{
+position:absolute;
+left:-30px;
+top:-2px;
+font-size:18pt;
 }
+
+#rbar1,#rbar2{background:red}
+#gbar1,#gbar2{background:green}
+#bbar1,#bbar2{background:blue}
+
+button{
+font-size:18pt;
+margin-top:20px;
+padding:6px 14px;
+}
+
 </style>
 </head>
 
 <body>
 
-<div id="layout">
+<div class="demo">
 
-<canvas id="spec" width="700" height="300"></canvas>
+<canvas id="spec1" width="720" height="360"></canvas>
 
-<div id="right">
-<div id="patch"></div>
+<div class="right">
 
-<div class="bar"><div id="R" class="barFill"></div></div>
-<div class="bar"><div id="G" class="barFill"></div></div>
-<div class="bar"><div id="B" class="barFill"></div></div>
+<div class="patchTitle">Predicted Color</div>
+<div id="patch1" class="patch"></div>
 
-<button id="clear">Clear</button>
+<div class="bar"><span class="barLabel">L</span><div id="rbar1" class="fill"></div></div>
+<div class="bar"><span class="barLabel">M</span><div id="gbar1" class="fill"></div></div>
+<div class="bar"><span class="barLabel">S</span><div id="bbar1" class="fill"></div></div>
+
+<button onclick="clearSpectrum(1)">Clear</button>
+
+</div>
 </div>
 
+
+<div class="demo">
+
+<canvas id="spec2" width="720" height="360"></canvas>
+
+<div class="right">
+
+<div class="patchTitle">Predicted Color</div>
+<div id="patch2" class="patch"></div>
+
+<div class="bar"><span class="barLabel">L</span><div id="rbar2" class="fill"></div></div>
+<div class="bar"><span class="barLabel">M</span><div id="gbar2" class="fill"></div></div>
+<div class="bar"><span class="barLabel">S</span><div id="bbar2" class="fill"></div></div>
+
+<button onclick="clearSpectrum(2)">Clear</button>
+
 </div>
+</div>
+
 
 <script>
 
-// canvas
-const canvas = document.getElementById("spec");
-const ctx = canvas.getContext("2d");
+const wlMin=380;
+const wlMax=700;
 
-const W = canvas.width;
-const H = canvas.height;
+const width=720;
+const leftMargin=80;
 
-const wlMin = 380;
-const wlMax = 700;
-const N = W;
+let demos={};
 
-let spectrum = new Array(N).fill(0);
+initDemo(1);
+initDemo(2);
 
-let drawing = false;
+function initDemo(id){
+
+let canvas=document.getElementById("spec"+id);
+let ctx=canvas.getContext("2d");
+
+const H=canvas.height-60;
+const N=width-leftMargin;
+
+const plotTop=0;
+const plotBottom=H;
+const plotHeight=plotBottom-plotTop;
+
+let spectrum=new Array(N).fill(0);
+
+let wl=[];
+for(let i=0;i<N;i++)
+wl[i]=wlMin+(wlMax-wlMin)*i/(N-1);
 
 
-// approximate cone sensitivities
-function gauss(x,mu,s){
-return Math.exp(-(x-mu)**2/(2*s*s));
+function gauss(x,m,s){
+let d=x-m;
+return Math.exp(-(d*d)/(2*s*s));
 }
 
-let L = [];
-let M = [];
-let S = [];
-let wavelengths=[];
+let L=[],M=[],S=[];
 
 for(let i=0;i<N;i++){
 
-let wl = wlMin + (wlMax-wlMin)*i/(N-1);
-wavelengths.push(wl);
+let w=wl[i];
 
-L.push(gauss(wl,560,40));
-M.push(gauss(wl,530,35));
-S.push(gauss(wl,420,25));
+L[i]=gauss(w,564,40)+0.3*gauss(w,530,25);
+M[i]=gauss(w,534,38);
+S[i]=gauss(w,420,20);
 
 }
 
+normalize(L);
+normalize(M);
+normalize(S);
 
-// wavelength → RGB for spectrum fill
+function normalize(a){
+let s=a.reduce((p,c)=>p+c,0);
+for(let i=0;i<a.length;i++) a[i]/=s;
+}
+
+
 function wavelengthToRGB(w){
 
 let r=0,g=0,b=0;
@@ -124,66 +185,82 @@ else if(w<580){r=(w-510)/(580-510);g=1;}
 else if(w<645){r=1;g=-(w-645)/(645-580);}
 else{r=1;}
 
-return [r,g,b];
+return[r,g,b];
+
 }
 
 
-// drawing spectrum
 function drawSpectrum(){
 
-ctx.clearRect(0,0,W,H);
+ctx.clearRect(0,0,width,canvas.height);
 
 for(let i=0;i<N;i++){
 
-let val = spectrum[i];
-let y = H*(1-val);
+let val=spectrum[i];
+let y=plotTop+plotHeight*(1-val);
 
-let wl = wavelengths[i];
-let rgb = wavelengthToRGB(wl);
+let rgb=wavelengthToRGB(wl[i]);
 
 ctx.fillStyle=`rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
-ctx.fillRect(i,y,1,H-y);
+
+ctx.fillRect(i+leftMargin,y,1,plotBottom-y);
 
 }
 
-// axes
 ctx.strokeStyle="black";
 ctx.beginPath();
-ctx.moveTo(0,H);
-ctx.lineTo(W,H);
+ctx.moveTo(leftMargin,plotBottom);
+ctx.lineTo(width,plotBottom);
 ctx.stroke();
 
+ctx.save();
+
+ctx.font="18pt sans-serif";
 ctx.fillStyle="black";
-ctx.font="12px sans-serif";
+ctx.textAlign="center";
 
-for(let wl=380;wl<=700;wl+=40){
+for(let w=400;w<=700;w+=50){
 
-let x=(wl-380)/(700-380)*W;
-ctx.fillText(wl,x-10,H+15);
+let x=leftMargin+(w-380)/(700-380)*N;
+ctx.fillText(w,x,plotBottom+25);
 
 }
+
+ctx.fillText("Wavelength (nm)",leftMargin+N/2,canvas.height-5);
+
+ctx.restore();
+
+ctx.save();
+
+ctx.translate(30,plotTop+plotHeight/2);
+ctx.rotate(-Math.PI/2);
+ctx.textAlign="center";
+ctx.font="18pt sans-serif";
+ctx.fillStyle="black";
+ctx.fillText("# photons",0,0);
+
+ctx.restore();
 
 computeColor();
 
 }
 
 
-// LMS integration
 function computeColor(){
 
-let Lresp=0,Mresp=0,Sresp=0;
+let Lr=0,Mr=0,Sr=0;
 
 for(let i=0;i<N;i++){
 
-let val=spectrum[i];
+let v=spectrum[i];
 
-Lresp+=val*L[i];
-Mresp+=val*M[i];
-Sresp+=val*S[i];
+Lr+=v*L[i];
+Mr+=v*M[i];
+Sr+=v*S[i];
 
 }
 
-let LMS=[Lresp,Mresp,Sresp];
+let LMS=[Lr,Mr,Sr];
 
 let Mmat=[
 [4.47,-3.59,0.12],
@@ -201,13 +278,12 @@ rgb=rgb.map(v=>Math.max(v,0));
 
 let lum=LMS[0]+LMS[1]+LMS[2];
 
-let maxv=Math.max(...rgb);
-if(maxv>0) rgb=rgb.map(v=>v/maxv);
+let m=Math.max(...rgb);
+
+if(m>0) rgb=rgb.map(v=>v/m);
 
 rgb=rgb.map(v=>v*lum);
-
-rgb=rgb.map(v=>Math.sqrt(v)); // gamma
-
+rgb=rgb.map(v=>Math.sqrt(v));
 rgb=rgb.map(v=>Math.min(v,1));
 
 updateUI(rgb);
@@ -215,58 +291,98 @@ updateUI(rgb);
 }
 
 
-// update patch + bars
 function updateUI(rgb){
 
-let patch=document.getElementById("patch");
-patch.style.background=`rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
+document.getElementById("patch"+id).style.background=
+`rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
 
-document.getElementById("R").style.width=(rgb[0]*100)+"%";
-document.getElementById("G").style.width=(rgb[1]*100)+"%";
-document.getElementById("B").style.width=(rgb[2]*100)+"%";
+document.getElementById("rbar"+id).style.width=(rgb[0]*100)+"%";
+document.getElementById("gbar"+id).style.width=(rgb[1]*100)+"%";
+document.getElementById("bbar"+id).style.width=(rgb[2]*100)+"%";
 
 }
 
 
-// mouse drawing
-canvas.addEventListener("mousedown",e=>{
-drawing=true;
-draw(e);
+// drawing logic
+
+let drawing=false;
+let mouseDown=false;
+let lastX=null;
+
+document.addEventListener("mousedown",()=>{
+mouseDown=true;
 });
 
-canvas.addEventListener("mouseup",()=>drawing=false);
+document.addEventListener("mouseup",()=>{
+mouseDown=false;
+drawing=false;
+lastX=null;
+});
 
-canvas.addEventListener("mousemove",draw);
+canvas.addEventListener("mousemove",e=>{
+
+if(!mouseDown) return;
+
+drawing=true;
+draw(e);
+
+});
+
 
 function draw(e){
 
-if(!drawing) return;
-
 let rect=canvas.getBoundingClientRect();
-let x=Math.floor(e.clientX-rect.left);
+
+let x=Math.floor(e.clientX-rect.left-leftMargin);
 let y=e.clientY-rect.top;
 
 if(x<0||x>=N) return;
 
-let val=1-y/H;
+if(y<plotTop) y=plotTop;
+if(y>plotBottom) y=plotBottom;
+
+let val=1-(y-plotTop)/plotHeight;
+
 val=Math.max(0,Math.min(1,val));
 
+if(lastX!==null){
+
+let dx=x-lastX;
+
+for(let k=1;k<=Math.abs(dx);k++){
+
+let xi=lastX+Math.sign(dx)*k;
+let t=k/Math.abs(dx);
+
+let yi=spectrum[lastX]*(1-t)+val*t;
+
+if(xi>=0&&xi<N)
+spectrum[xi]=yi;
+
+}
+
+}
+
 spectrum[x]=val;
+lastX=x;
+
+drawSpectrum();
+
+}
+
+demos[id]={drawSpectrum,spectrum};
 
 drawSpectrum();
 
 }
 
 
-// clear button
-document.getElementById("clear").onclick=()=>{
-spectrum.fill(0);
-drawSpectrum();
-};
+function clearSpectrum(id){
 
+demos[id].spectrum.fill(0);
+demos[id].drawSpectrum();
 
-// initial draw
-drawSpectrum();
+}
 
 </script>
 
