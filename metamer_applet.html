@@ -285,7 +285,7 @@ if(m>0) rgb=rgb.map(v=>v/m);
 rgb=rgb.map(v=>v*lum);
 rgb=rgb.map(v=>Math.sqrt(v));
 rgb=rgb.map(v=>Math.min(v,1));
-
+console.log(L[10],M[10],S[10])
 updateUI(rgb);
 
 }
@@ -331,10 +331,13 @@ draw(e);
 
 function draw(e){
 
-let rect=canvas.getBoundingClientRect();
+  let rect = canvas.getBoundingClientRect();
 
-let x=Math.floor(e.clientX-rect.left-leftMargin);
-let y=e.clientY-rect.top;
+  let scaleX = canvas.width / rect.width;
+  let scaleY = canvas.height / rect.height;
+
+  let x = Math.floor((e.clientX - rect.left) * scaleX - leftMargin);
+  let y = (e.clientY - rect.top) * scaleY;
 
 if(x<0||x>=N) return;
 
