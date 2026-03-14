@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+
+<title>Reflectance × Illumination Demo</title>
+
+<style>
+
+body{
+font-family:sans-serif;
+font-size:16pt;
+margin:20px;
+}
+
+.row{
+display:flex;
+gap:40px;
+margin-bottom:40px;
+justify-content:center;
+align-items:flex-start;
+}
+
+canvas{
+border:1px solid #777;
+}
+
+.panel{
+display:flex;
+flex-direction:column;
+align-items:center;
+}
+
+.patch{
+width:90px;
+height:90px;
+border-radius:50%;
+border:1px solid #777;
+margin-top:10px;
+background:black;
+}
+
+.title{
+font-weight:bold;
+margin-bottom:5px;
+}
+
+button{
+margin-top:10px;
+font-size:14pt;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="row">
+
+<div class="panel">
+<div class="title">Illumination Spectrum</div>
+<canvas id="illum" width="720" height="280"></canvas>
+<div id="patchIllum" class="patch"></div>
+<button onclick="clearSpec('illum')">Clear</button>
+</div>
+
+<div class="panel">
+<div class="title">Reflectance Spectrum</div>
+<canvas id="refl" width="720" height="280"></canvas>
+<div id="patchRefl" class="patch"></div>
+<button onclick="clearSpec('refl')">Clear</button>
+</div>
+
+</div>
+
+<div class="row">
+
+<div class="panel">
+<div class="title">Light from Surface</div>
+<canvas id="result" width="720" height="280"></canvas>
+<div id="patchResult" class="patch"></div>
+</div>
+
+</div>
+
+<script>
+
+const wlMin=380;
+const wlMax=700;
+
+const width=720;
+const height=280;
+
+const leftMargin=70;
+const bottomMargin=55;
+
+const N=width-leftMargin;
+
+let wl=[];
+for(let i=0;i<N;i++)
+wl[i]=wlMin+(wlMax-wlMin)*i/(N-1);
+
+let illumination=new Array(N).fill(0);
+let reflectance=new Array(N).fill(0);
+let result=new Array(N).fill(0);
+
+let canvases={
+illum:document.getElementById("illum"),
+refl:document.getElementById("refl"),
+result:document.getElementById("result")
+};
+
+let ctx={
+illum:canvases.illum.getContext("2d"),
+refl:canvases.refl.getContext("2d"),
+result:canvases.result.getContext("2d")
+};
+
+let mouseDown=false;
+
+document.addEventListener("mousedown",()=>mouseDown=true);
+document.addEventListener("mouseup",()=>mouseDown=false);
+
+
+function gauss(x,m,s){
+let d=x-m;
+return Math.exp(-(d*d)/(2*s*s));
+}
+
+let L=[],M=[],S=[];
+
+for(let i=0;i<N;i++){
+
+let w=wl[i];
+
+L[i]=gauss(w,564,40)+0.3*gauss(w,530,25);
+M[i]=gauss(w,534,38);
+S[i]=gauss(w,420,20);
+
+}
+
+normalize(L);
+normalize(M);
+normalize(S);
+
+function normalize(a){
+
+let s=a.reduce((p,c)=>p+c,0);
+
+for(let i=0;i<a.length;i++)
+a[i]/=s;
+
+}
+
+const Mmat=[
+[4.4679,-3.5873,0.1193],
+[-1.2186,2.3809,-0.1624],
+[0.0497,-0.2439,1.2045]
+];
+
+
+function wavelengthToRGB(w){
+
+let R=0,G=0,B=0;
+
+if(w>=380 && w<440){R=-(w-440)/(440-380);B=1;}
+else if(w<490){G=(w-440)/(490-440);B=1;}
+else if(w<510){G=1;B=-(w-510)/(510-490);}
+else if(w<580){R=(w-510)/(580-510);G=1;}
+else if(w<645){R=1;G=-(w-645)/(645-580);}
+else if(w<=700){R=1;}
+
+let factor;
+
+if(w<420) factor=0.3+0.7*(w-380)/(420-380);
+else if(w>645) factor=0.3+0.7*(700-w)/(700-645);
+else factor=1;
+
+let gamma=0.8;
+
+R=Math.pow(R*factor,gamma);
+G=Math.pow(G*factor,gamma);
+B=Math.pow(B*factor,gamma);
+
+return [R,G,B];
+
+}
+
+
+function drawAxes(c,ylabel){
+
+c.strokeStyle="black";
+
+c.beginPath();
+c.moveTo(leftMargin,height-bottomMargin);
+c.lineTo(width,height-bottomMargin);
+c.stroke();
+
+c.font="14pt sans-serif";
+c.textAlign="center";
+
+for(let w=400;w<=700;w+=50){
+
+let x=leftMargin+(w-wlMin)/(wlMax-wlMin)*N;
+c.fillText(w,x,height-bottomMargin+20);
+
+}
+
+c.fillText("Wavelength (nm)",leftMargin+N/2,height-5);
+
+c.save();
+c.translate(25,height/2);
+c.rotate(-Math.PI/2);
+c.fillText(ylabel,0,0);
+c.restore();
+
+}
+
+
+function drawSpectrum(type,array,ylabel){
+
+let c=ctx[type];
+
+c.clearRect(0,0,width,height);
+
+for(let i=0;i<N;i++){
+
+let val=array[i];
+
+let y=(height-bottomMargin)*(1-val);
+
+let rgb=wavelengthToRGB(wl[i]);
+
+c.fillStyle=`rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
+
+c.fillRect(i+leftMargin,y,1,(height-bottomMargin)-y);
+
+}
+
+drawAxes(c,ylabel);
+
+}
+
+
+function updateColorPatch(spec,id){
+
+let Lr=0,Mr=0,Sr=0;
+
+for(let i=0;i<N;i++){
+
+let v=spec[i];
+
+Lr+=v*L[i];
+Mr+=v*M[i];
+Sr+=v*S[i];
+
+}
+
+let R =
+Mmat[0][0]*Lr +
+Mmat[0][1]*Mr +
+Mmat[0][2]*Sr;
+
+let G =
+Mmat[1][0]*Lr +
+Mmat[1][1]*Mr +
+Mmat[1][2]*Sr;
+
+let B =
+Mmat[2][0]*Lr +
+Mmat[2][1]*Mr +
+Mmat[2][2]*Sr;
+
+R=Math.max(R,0);
+G=Math.max(G,0);
+B=Math.max(B,0);
+
+let lum=Lr+Mr+Sr;
+
+let maxv=Math.max(R,G,B);
+
+if(maxv>0){
+R/=maxv;
+G/=maxv;
+B/=maxv;
+}
+
+R*=lum;
+G*=lum;
+B*=lum;
+
+R=Math.pow(R,0.5);
+G=Math.pow(G,0.5);
+B=Math.pow(B,0.5);
+
+R=Math.min(R,1);
+G=Math.min(G,1);
+B=Math.min(B,1);
+
+document.getElementById(id).style.background =
+`rgb(${R*255},${G*255},${B*255})`;
+
+}
+
+
+function computeProduct(){
+
+for(let i=0;i<N;i++)
+result[i]=illumination[i]*reflectance[i];
+
+drawSpectrum("result",result,"# of photons");
+
+updateColorPatch(illumination,"patchIllum");
+updateColorPatch(reflectance,"patchRefl");
+updateColorPatch(result,"patchResult");
+
+}
+
+
+function redraw(){
+
+drawSpectrum("illum",illumination,"# of photons");
+drawSpectrum("refl",reflectance,"% photons reflected");
+
+computeProduct();
+
+}
+
+
+function clearSpec(type){
+
+if(type==="illum") illumination.fill(0);
+if(type==="refl") reflectance.fill(0);
+
+redraw();
+
+}
+
+
+function enableDrawing(canvas,array){
+
+let lastX=null;
+
+canvas.addEventListener("mousemove",e=>{
+
+if(!mouseDown) return;
+
+let rect=canvas.getBoundingClientRect();
+
+let x=Math.floor((e.clientX-rect.left)-leftMargin);
+let y=e.clientY-rect.top;
+
+if(x<0||x>=N) return;
+
+let val=1-y/(height-bottomMargin);
+val=Math.max(0,Math.min(1,val));
+
+if(lastX!==null){
+
+let dx=x-lastX;
+
+for(let k=1;k<=Math.abs(dx);k++){
+
+let xi=lastX+Math.sign(dx)*k;
+let t=k/Math.abs(dx);
+
+let yi=array[lastX]*(1-t)+val*t;
+
+if(xi>=0 && xi<N)
+array[xi]=yi;
+
+}
+
+}
+
+array[x]=val;
+lastX=x;
+
+redraw();
+
+});
+
+canvas.addEventListener("mouseleave",()=>lastX=null);
+
+}
+
+enableDrawing(canvases.illum,illumination);
+enableDrawing(canvases.refl,reflectance);
+
+redraw();
+
+</script>
+
+</body>
+</html>
