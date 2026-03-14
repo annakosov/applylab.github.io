@@ -322,7 +322,7 @@ function updateUI(rgb, Lr, Mr, Sr){
 document.getElementById("patch"+id).style.background =
 `rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
 
-let maxCone = Math.max(Lr,Mr,Sr);
+let maxCone = 1//Math.max(Lr,Mr,Sr);
 
 if(maxCone>0){
 Lr/=maxCone;
