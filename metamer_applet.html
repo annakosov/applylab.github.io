@@ -385,20 +385,23 @@ if(!mouseDown) return;
 
 let rect = canvas.getBoundingClientRect();
 
-let px = e.clientX - rect.left;
-let x = Math.floor(px - leftMargin);
+// 🔥 FIX: account for CSS vs canvas scaling
+let scaleX = canvas.width / rect.width;
+let scaleY = canvas.height / rect.height;
 
+let px = (e.clientX - rect.left) * scaleX;
+let py = (e.clientY - rect.top) * scaleY;
+
+let x = Math.floor(px - leftMargin);
 x = Math.max(0, Math.min(N - 1, x));
 
-let y = e.clientY - rect.top;
+let y = py;
 
-// use the same plotting region as the drawing code
-let plotHeight = plotBottom - plotTop;
-
+// use correct plot region
 if(y < plotTop) y = plotTop;
 if(y > plotBottom) y = plotBottom;
 
-let val = 1 - (y - plotTop) / plotHeight;
+let val = 1 - (y - plotTop) / (plotBottom - plotTop);
 val = Math.max(0, Math.min(1, val));
 
 if(lastX !== null){
