@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Metamer Spectrum Drawer</title>
+
+<style>
+
+body{
+font-family:sans-serif;
+font-size:18pt;
+margin:20px;
+}
+
+.demo{
+display:flex;
+gap:40px;
+margin-bottom:70px;
+}
+
+canvas{
+border:1px solid #777;
+}
+
+.right{
+display:flex;
+flex-direction:column;
+align-items:center;
+width:260px;
+}
+
+.patchTitle{
+margin-bottom:10px;
+}
+
+.patch{
+width:160px;
+height:160px;
+border-radius:50%;
+background:black;
+border:1px solid #999;
+margin-bottom:25px;
+}
+
+.bar{
+width:160px;
+height:22px;
+background:#ddd;
+margin:8px 0;
+position:relative;
+}
+
+.fill{
+height:100%;
+width:0%;
+}
+
+.barLabel{
+position:absolute;
+left:-30px;
+top:-2px;
+font-size:18pt;
+}
+
+#rbar1,#rbar2{background:red}
+#gbar1,#gbar2{background:green}
+#bbar1,#bbar2{background:blue}
+
+button{
+font-size:18pt;
+margin-top:20px;
+padding:6px 14px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="demo">
+
+<canvas id="spec1" width="720" height="360"></canvas>
+
+<div class="right">
+
+<div class="patchTitle">Predicted Color</div>
+<div id="patch1" class="patch"></div>
+
+<div class="bar"><span class="barLabel">L</span><div id="rbar1" class="fill"></div></div>
+<div class="bar"><span class="barLabel">M</span><div id="gbar1" class="fill"></div></div>
+<div class="bar"><span class="barLabel">S</span><div id="bbar1" class="fill"></div></div>
+
+<button onclick="clearSpectrum(1)">Clear</button>
+
+</div>
+</div>
+
+
+<div class="demo">
+
+<canvas id="spec2" width="720" height="360"></canvas>
+
+<div class="right">
+
+<div class="patchTitle">Predicted Color</div>
+<div id="patch2" class="patch"></div>
+
+<div class="bar"><span class="barLabel">L</span><div id="rbar2" class="fill"></div></div>
+<div class="bar"><span class="barLabel">M</span><div id="gbar2" class="fill"></div></div>
+<div class="bar"><span class="barLabel">S</span><div id="bbar2" class="fill"></div></div>
+
+<button onclick="clearSpectrum(2)">Clear</button>
+
+</div>
+</div>
+
+
+<script>
+
+const wlMin=380;
+const wlMax=700;
+
+
+
+let demos={};
+
+initDemo(1);
+initDemo(2);
+
+function initDemo(id){
+
+let canvas=document.getElementById("spec"+id);
+let ctx=canvas.getContext("2d");
+
+const leftMargin = 80;
+const rightMargin = 0;
+const bottomMargin = 80;
+
+const plotWidth = canvas.width - leftMargin - rightMargin;
+const plotTop = 0;
+const plotBottom = canvas.height - bottomMargin;
+const plotHeight = plotBottom - plotTop;
+
+const N = plotWidth;
+
+
+let spectrum=new Array(N).fill(0);
+
+let wl=[];
+for(let i=0;i<N;i++)
+wl[i] = wlMin + (wlMax - wlMin) * i / (N - 1);
+
+
+function gauss(x,m,s){
+let d=x-m;
+return Math.exp(-(d*d)/(2*s*s));
+}
+
+let L=[],M=[],S=[];
+
+for(let i=0;i<N;i++){
+
+let w=wl[i];
+
+L[i]=gauss(w,564,40)+0.3*gauss(w,530,25);
+M[i]=gauss(w,534,38);
+S[i]=gauss(w,420,20);
+
+}
+
+normalize(L);
+normalize(M);
+normalize(S);
+
+function normalize(a){
+
+let s=a.reduce((p,c)=>p+c,0);
+
+for(let i=0;i<a.length;i++)
+a[i]/=s;
+
+}
+
+
+
+function wavelengthToRGB(w){
+
+let R=0,G=0,B=0;
+
+if(w>=380 && w<440){R=-(w-440)/(440-380);B=1;}
+else if(w<490){G=(w-440)/(490-440);B=1;}
+else if(w<510){G=1;B=-(w-510)/(510-490);}
+else if(w<580){R=(w-510)/(580-510);G=1;}
+else if(w<645){R=1;G=-(w-645)/(645-580);}
+else if(w<=700){R=1;}
+
+let factor;
+
+if(w<420) factor=0.3+0.7*(w-380)/(420-380);
+else if(w>645) factor=0.3+0.7*(700-w)/(700-645);
+else factor=1;
+
+let gamma=0.8;
+
+R=Math.pow(R*factor,gamma);
+G=Math.pow(G*factor,gamma);
+B=Math.pow(B*factor,gamma);
+
+return [R,G,B];
+
+}
+
+
+function drawSpectrum(){
+
+ctx.clearRect(0,0,canvas.width,canvas.height);
+
+for(let i=0;i<N;i++){
+
+let val=spectrum[i];
+let y=plotTop+plotHeight*(1-val);
+
+let rgb=wavelengthToRGB(wl[i]);
+
+ctx.fillStyle=`rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
+
+ctx.fillRect(i+leftMargin,y,1,plotBottom-y);
+
+}
+
+ctx.strokeStyle="black";
+ctx.beginPath();
+ctx.moveTo(leftMargin,plotBottom);
+ctx.lineTo(leftMargin + N,plotBottom);  // FIXED HERE
+ctx.stroke();
+
+ctx.save();
+
+ctx.font="18pt sans-serif";
+ctx.fillStyle="black";
+ctx.textAlign="center";
+
+for(let w=400;w<=700;w+=50){
+
+let x=leftMargin+(w-380)/(700-380)*N;
+ctx.fillText(w,x,plotBottom+25);
+
+}
+
+ctx.fillText("Wavelength (nm)",leftMargin+N/2,canvas.height-5);
+
+ctx.restore();
+
+ctx.save();
+
+ctx.translate(30,plotTop+plotHeight/2);
+ctx.rotate(-Math.PI/2);
+ctx.textAlign="center";
+ctx.font="18pt sans-serif";
+ctx.fillStyle="black";
+ctx.fillText("# photons",0,0);
+
+ctx.restore();
+
+computeColor();
+
+}
+
+
+function computeColor(){
+// const dLambda = (wlMax - wlMin) / (N - 1);
+
+let Lr=0,Mr=0,Sr=0;
+// let scaleFactor = 1.5//1.5
+for(let i=0;i<N;i++){
+
+let v=spectrum[i];
+
+Lr+=v*L[i]//*scaleFactor;
+Mr+=v*M[i]//*scaleFactor;
+Sr+=v*S[i]//*scaleFactor;
+
+}
+
+let LMS=[Lr,Mr,Sr];
+
+let Mmat=[
+[4.47,-3.59,0.12],
+[-1.22,2.38,-0.16],
+[0.06,-0.26,1.20]
+];
+
+let rgb=[0,0,0];
+
+for(let i=0;i<3;i++)
+for(let j=0;j<3;j++)
+rgb[i]+=Mmat[i][j]*LMS[j];
+
+rgb=rgb.map(v=>Math.max(v,0));
+
+let lum=LMS[0]+LMS[1]+LMS[2];
+
+let maxv=Math.max(...rgb);
+
+if(maxv>0){
+rgb=rgb.map(v=>v/maxv);
+}
+
+rgb=rgb.map(v=>v*lum);
+
+rgb=rgb.map(v=>Math.pow(v,0.5));
+
+rgb=rgb.map(v=>Math.min(v,1));
+
+updateUI(rgb,Lr,Mr,Sr);
+
+}
+
+
+function updateUI(rgb, Lr, Mr, Sr){
+
+document.getElementById("patch"+id).style.background =
+`rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
+
+let maxCone = 1//Math.max(Lr,Mr,Sr);
+
+if(maxCone>0){
+Lr/=maxCone;
+Mr/=maxCone;
+Sr/=maxCone;
+}
+
+document.getElementById("rbar"+id).style.width=(Lr*100)+"%";
+document.getElementById("gbar"+id).style.width=(Mr*100)+"%";
+document.getElementById("bbar"+id).style.width=(Sr*100)+"%";
+
+}
+
+
+// drawing logic
+
+let drawing=false;
+let mouseDown=false;
+let lastX=null;
+
+document.addEventListener("mousedown",()=>{
+mouseDown=true;
+});
+
+document.addEventListener("mouseup",()=>{
+mouseDown=false;
+drawing=false;
+lastX=null;
+});
+
+canvas.addEventListener("mousemove",e=>{
+
+if(!mouseDown) return;
+
+drawing=true;
+draw(e);
+
+});
+canvas.addEventListener("mousedown", e => {
+
+let rect = canvas.getBoundingClientRect();
+
+let cursorX = e.clientX - rect.left;
+
+let i = Math.floor(cursorX - leftMargin);
+let wlCursor = wlMin + (wlMax - wlMin) * i / (N - 1);
+
+console.log(
+"cursor:", cursorX,
+"expected plot end:", canvas.width,
+"wavelength:", wlCursor
+);
+
+
+});
+
+function draw(e){
+
+if(!mouseDown) return;
+
+let rect = canvas.getBoundingClientRect();
+
+// 🔥 FIX: account for CSS vs canvas scaling
+let scaleX = canvas.width / rect.width;
+let scaleY = canvas.height / rect.height;
+
+let px = (e.clientX - rect.left) * scaleX;
+let py = (e.clientY - rect.top) * scaleY;
+
+let x = Math.floor(px - leftMargin);
+x = Math.max(0, Math.min(N - 1, x));
+
+let y = py;
+
+// use correct plot region
+if(y < plotTop) y = plotTop;
+if(y > plotBottom) y = plotBottom;
+
+let val = 1 - (y - plotTop) / (plotBottom - plotTop);
+val = Math.max(0, Math.min(1, val));
+
+if(lastX !== null){
+
+let dx = x - lastX;
+
+for(let k = 1; k <= Math.abs(dx); k++){
+
+let xi = lastX + Math.sign(dx)*k;
+let t = k / Math.abs(dx);
+
+let yi = spectrum[lastX]*(1-t) + val*t;
+
+if(xi >= 0 && xi < N)
+spectrum[xi] = yi;
+
+}
+
+}
+
+spectrum[x] = val;
+lastX = x;
+
+drawSpectrum();
+
+}
+
+demos[id]={drawSpectrum,spectrum};
+
+drawSpectrum();
+
+}
+
+
+function clearSpectrum(id){
+
+demos[id].spectrum.fill(0);
+demos[id].drawSpectrum();
+
+}
+
+</script>
+
+</body>
+</html>
