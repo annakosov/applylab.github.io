@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Receptive Field Demo</title>
+
+<style>
+body {
+  font-family: sans-serif;
+  margin: 20px;
+}
+
+.controls {
+  margin-bottom: 15px;
+}
+
+canvas {
+  border: 1px solid black;
+  display: block;
+  margin-bottom: 15px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Receptive Field Demo</h2>
+
+<div class="controls">
+  Receptive Field:
+  <select id="rfType">
+    <option value="onCenter">On-center / Off-surround</option>
+    <option value="offCenter">Off-center / On-surround</option>
+    <option value="simple">Simple Cell (bar)</option>
+  </select>
+
+  Stimulus:
+  <select id="stimType">
+    <option value="spot">Spot</option>
+    <option value="bar">Bar</option>
+  </select>
+
+  Size:
+  <input type="range" id="sizeSlider" min="5" max="100" value="30">
+
+  Orientation:
+  <input type="range" id="angleSlider" min="0" max="180" value="0">
+</div>
+
+<canvas id="stimCanvas" width="400" height="400"></canvas>
+<canvas id="spikeCanvas" width="400" height="120"></canvas>
+
+<script>
+const stimCanvas = document.getElementById("stimCanvas");
+const stimCtx = stimCanvas.getContext("2d");
+
+const spikeCanvas = document.getElementById("spikeCanvas");
+const spikeCtx = spikeCanvas.getContext("2d");
+
+let mouse = {x: 200, y: 200};
+let spikes = [];
+
+// Mouse control
+stimCanvas.addEventListener("mousemove", e => {
+  const rect = stimCanvas.getBoundingClientRect();
+
+  const scaleX = stimCanvas.width / rect.width;
+  const scaleY = stimCanvas.height / rect.height;
+
+  mouse.x = (e.clientX - rect.left) * scaleX;
+  mouse.y = (e.clientY - rect.top) * scaleY;
+});
+// Draw stimulus
+function drawStimulus() {
+  // Clear + BLACK background
+  stimCtx.fillStyle = "black";
+  stimCtx.fillRect(0, 0, 400, 400);
+  const rfAngle = 0; // fixed RF orientation (horizontal)
+
+  const stimType = document.getElementById("stimType").value;
+  const size = parseInt(document.getElementById("sizeSlider").value);
+  const angle = document.getElementById("angleSlider").value * Math.PI/180;
+
+  stimCtx.rotate(rfAngle);
+  stimCtx.fillStyle = "white";
+
+  if (stimType === "spot") {
+    stimCtx.beginPath();
+    stimCtx.arc(mouse.x, mouse.y, size, 0, Math.PI * 2);
+    stimCtx.fill();
+  }
+
+  if (stimType === "bar") {
+    stimCtx.save();
+    stimCtx.translate(mouse.x, mouse.y);
+    stimCtx.rotate(angle);
+    stimCtx.fillRect(-size, -6, size * 2, 12);
+    stimCtx.restore();
+  }
+}
+
+function computeResponse(rfType, cx, cy, mouse) {
+
+  let response = 0;
+
+  // --- CENTER-SURROUND ---
+  if (rfType === "onCenter" || rfType === "offCenter") {
+
+    let centerSum = 0;
+    let surroundSum = 0;
+
+    let centerCount = 0;
+    let surroundCount = 0;
+
+
+    let centerMax = 0;
+    let surroundMax = 0;
+
+
+    const samples = 300;
+
+    for (let i = 0; i < samples; i++) {
+
+      let center = 0;
+      let surround = 0;
+
+      const x = cx + (Math.random() - 0.5) * 200;
+      const y = cy + (Math.random() - 0.5) * 200;
+
+      const dx = x - cx;
+      const dy = y - cy;
+      const dist2 = dx*dx + dy*dy;
+
+      const r2 = dist2;
+
+      // --- define annulus RF ---
+      if (r2 < 30*30) {
+        center = Math.exp(-dist2 / 800);
+      }
+
+      if (r2 >= 30*30 && r2 < 80*80) {
+        surround = Math.exp(-dist2 / 3000);
+      }
+
+      const stim = isInsideStimulus(x, y) ? 1 : 0;
+
+      if (center > 0) {
+        centerSum += center * stim;
+        centerMax += center;   // ← key change
+      }
+
+      if (surround > 0) {
+        surroundSum += surround * stim;
+        surroundMax += surround; // ← key change
+      }
+
+    }
+
+    // surroundCount = surroundCount*.55
+    //  --- normalize each region independently ---
+    let centerNorm = 0;
+    let surroundNorm = 0;
+
+    if (centerMax > 0) {
+      centerNorm = centerSum / centerMax;
+    }
+
+    if (surroundMax > 0) {
+      surroundNorm = surroundSum / surroundMax;
+    }
+
+    // --- assign excitation/inhibition ---
+    let excitation, inhibition;
+
+    if (rfType === "onCenter") {
+      excitation = centerNorm;
+      inhibition = surroundNorm;
+    } else { // offCenter
+      excitation = surroundNorm;
+      inhibition = centerNorm;
+    }
+
+    // --- balanced response ---
+    const baseline = 5;
+    const gainE = 15;
+    const gainI = 15;
+
+    response = baseline + gainE * excitation - gainI * inhibition;
+    console.log(response)
+  }
+
+  // --- SIMPLE CELL ---
+  if (rfType === "simple") {
+
+    const dx = mouse.x - cx;
+    const dy = mouse.y - cy;
+
+    const rfAngle = 0; // RF fixed
+    const proj = dx * Math.cos(rfAngle) + dy * Math.sin(rfAngle);
+
+    const envelope = Math.exp(-(dx*dx + dy*dy) / 3000);
+    const grating = Math.cos(proj / 12);
+
+    const gain = 12;
+    const baseline = 0.5;
+
+    response = baseline + gain * envelope * grating;
+  }
+
+  // --- clamp ---
+  return Math.max(0, response);
+}
+
+
+
+// Generate spikes (Poisson-like)
+function updateSpikes(rate) {
+  const dt = 0.016; // ~60 FPS
+
+  // Proper Poisson spike probability
+  const p = rate * dt;
+
+  if (Math.random() < p) {
+    spikes.push(0);
+  }
+
+  // Move spikes across screen
+  spikes = spikes
+    .map(s => s + 2)
+    .filter(s => s < 400);
+}
+// Draw spike train
+function drawSpikes() {
+  spikeCtx.clearRect(0, 0, 400, 120);
+
+  spikeCtx.strokeStyle = "black";
+
+  spikes.forEach(s => {
+    spikeCtx.beginPath();
+    spikeCtx.moveTo(400 - s, 0);
+    spikeCtx.lineTo(400 - s, 120);
+    spikeCtx.stroke();
+  });
+}
+
+function drawReceptiveField(rfType,cx,cy) {
+  // const rfType = document.getElementById("rfType").value;
+  // console.log(rfType)
+  // const cx = 200;
+  // const cy = 200;
+
+  stimCtx.lineWidth = 2;
+  stimCtx.font = "16px sans-serif";
+  stimCtx.textAlign = "center";
+  stimCtx.textBaseline = "middle";
+
+
+  // stimCtx.fillStyle = "cyan";
+  // stimCtx.beginPath();
+  // stimCtx.arc(cx, cy, 5, 0, Math.PI * 2);
+  // stimCtx.fill();
+
+  if (rfType === "onCenter" || rfType === "offCenter") {
+
+    // CENTER
+    stimCtx.beginPath();
+    stimCtx.arc(cx, cy, 40, 0, Math.PI * 2);
+    stimCtx.strokeStyle = rfType === "onCenter" ? "lime" : "red";
+    stimCtx.stroke();
+
+    // SURROUND
+    stimCtx.beginPath();
+    stimCtx.arc(cx, cy, 80, 0, Math.PI * 2);
+    stimCtx.strokeStyle = rfType === "onCenter" ? "red" : "lime";
+    stimCtx.stroke();
+
+    // + / - labels
+    stimCtx.fillStyle = "white";
+    stimCtx.fillText(
+      rfType === "onCenter" ? "+" : "-",
+      cx,
+      cy
+    );
+
+    stimCtx.fillText(
+      rfType === "onCenter" ? "-" : "+",
+      cx + 60,
+      cy
+    );
+  }
+
+  if (rfType === "simple") {
+    const angle = document.getElementById("angleSlider").value * Math.PI/180;
+
+    stimCtx.save();
+    stimCtx.translate(cx, cy);
+    stimCtx.rotate(rfAngle);
+
+    // Left OFF region
+    stimCtx.fillStyle = "rgba(255,0,0,0.3)";
+    stimCtx.fillRect(-90, -40, 60, 80);
+
+    // Center ON region
+    stimCtx.fillStyle = "rgba(0,255,0,0.3)";
+    stimCtx.fillRect(-30, -40, 60, 80);
+
+    // Right OFF region
+    stimCtx.fillStyle = "rgba(255,0,0,0.3)";
+    stimCtx.fillRect(30, -40, 60, 80);
+
+    // Labels
+    stimCtx.fillStyle = "white";
+
+    stimCtx.fillText("-", -60, 0);
+    stimCtx.fillText("+", 0, 0);
+    stimCtx.fillText("-", 60, 0);
+
+    stimCtx.restore();
+  }
+}
+function isInsideStimulus(x, y) {
+  const stimType = document.getElementById("stimType").value;
+  const size = parseInt(document.getElementById("sizeSlider").value);
+  const angle = document.getElementById("angleSlider").value * Math.PI/180;
+
+  const dx = x - mouse.x;
+  const dy = y - mouse.y;
+
+  if (stimType === "spot") {
+    return (dx*dx + dy*dy) <= size*size;
+  }
+
+  if (stimType === "bar") {
+    // rotate point into bar coordinates
+    const xr = dx * Math.cos(-angle) - dy * Math.sin(-angle);
+    const yr = dx * Math.sin(-angle) + dy * Math.cos(-angle);
+
+    return Math.abs(xr) < size && Math.abs(yr) < 6;
+  }
+
+  return false;
+}
+function loop() {
+
+  const rfType = document.getElementById("rfType").value;
+  const cx = stimCanvas.width / 2;
+  const cy = stimCanvas.height / 2;
+  drawStimulus();
+  drawReceptiveField(rfType,cx,cy); // ← REQUIRED
+
+  const rate = computeResponse(rfType,cx,cy,mouse);
+  updateSpikes(rate);
+  drawSpikes();
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
