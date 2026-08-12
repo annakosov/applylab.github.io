@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Visual Search Experiment</title>
+
+<!-- jsPsych core + plugins -->
+<script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.4"></script>
+<script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/css/jspsych.css">
+
+<!-- Chart.js for the results plot -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f4f4f4;
+  }
+  .fixation {
+    font-size: 48px;
+    color: #333;
+  }
+  #results-screen {
+    max-width: 900px;
+    margin: 30px auto;
+    background: #fff;
+    padding: 24px 32px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  #results-screen h2 { margin-top: 28px; }
+  .chart-wrap { position: relative; height: 340px; margin-bottom: 24px; }
+  .note { color: #666; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<script>
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const SET_SIZES = [4, 8, 16, 32];
+const TYPES = ['feature', 'conjunction'];
+const PRESENCE = ['present', 'absent'];
+const REPS_PER_CONDITION = 3;   // trials per condition (16 conditions * 3 = 48 trials)
+const DISPLAY_SIZE = 520;       // px, square search area
+const GRID_COLS = 8;
+const GRID_ROWS = 8;
+const ITEM_SIZE = 30;           // px
+const TRIAL_TIMEOUT = 8000;     // ms
+const GROUP_DATA_KEY = 'vs_experiment_group_data';
+
+const jsPsych = initJsPsych({
+  on_finish: function () {
+    document.body.innerHTML = '';
+    renderResults(jsPsych.data.get());
+  }
+});
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Build the HTML for one search display and return it plus the correct key
+function generateDisplay(type, presence, setSize) {
+  const cellW = DISPLAY_SIZE / GRID_COLS;
+  const cellH = DISPLAY_SIZE / GRID_ROWS;
+  const totalCells = GRID_COLS * GRID_ROWS;
+
+  const cellIndices = shuffle([...Array(totalCells).keys()]).slice(0, setSize);
+
+  const distractorCount = presence === 'present' ? setSize - 1 : setSize;
+  let items = [];
+
+  if (type === 'feature') {
+    // Distractors differ from the target by color only (all red circles) -> pop-out
+    for (let i = 0; i < distractorCount; i++) items.push({ shape: 'circle', color: '#d64545' });
+  } else {
+    // Conjunction: distractors share color OR shape with the target, never both
+    const halfA = Math.ceil(distractorCount / 2);
+    const halfB = distractorCount - halfA;
+    for (let i = 0; i < halfA; i++) items.push({ shape: 'circle', color: '#d64545' }); // red circles
+    for (let i = 0; i < halfB; i++) items.push({ shape: 'square', color: '#3f9142' }); // green squares
+  }
+
+  if (presence === 'present') items.push({ shape: 'circle', color: '#3f9142', isTarget: true });
+
+  items = shuffle(items);
+
+  let html = `<div style="position:relative;width:${DISPLAY_SIZE}px;height:${DISPLAY_SIZE}px;margin:0 auto;">`;
+  items.forEach((item, i) => {
+    const cellIndex = cellIndices[i];
+    const col = cellIndex % GRID_COLS;
+    const row = Math.floor(cellIndex / GRID_COLS);
+    const jitterX = Math.random() * 14 - 7;
+    const jitterY = Math.random() * 14 - 7;
+    const left = col * cellW + cellW / 2 - ITEM_SIZE / 2 + jitterX;
+    const top = row * cellH + cellH / 2 - ITEM_SIZE / 2 + jitterY;
+    const radius = item.shape === 'circle' ? '50%' : '4px';
+    html += `<div style="position:absolute;left:${left}px;top:${top}px;width:${ITEM_SIZE}px;height:${ITEM_SIZE}px;background:${item.color};border-radius:${radius};"></div>`;
+  });
+  html += `</div>
+    <p style="margin-top:18px;font-size:16px;">Press <b>J</b> if the <span style="color:#3f9142;">green circle</span> is present &nbsp;|&nbsp; <b>F</b> if it is absent</p>`;
+
+  return html;
+}
+
+/* ============================================================
+   TIMELINE
+   ============================================================ */
+const timeline = [];
+
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <div style="max-width:600px;margin:0 auto;text-align:left;">
+      <h2>Visual Search Task</h2>
+      <p>On each trial you will briefly see a display of shapes. Your job is to decide,
+      as quickly and accurately as possible, whether a <b style="color:#3f9142;">green circle</b>
+      is present among the other shapes.</p>
+      <p>Press <b>J</b> if the green circle is <b>present</b>.<br>
+      Press <b>F</b> if the green circle is <b>absent</b>.</p>
+      <p>Press the spacebar to begin.</p>
+    </div>`,
+  choices: [' ']
+});
+
+// Build the full factorial condition list, repeated
+let conditions = [];
+TYPES.forEach(type => {
+  PRESENCE.forEach(presence => {
+    SET_SIZES.forEach(setSize => {
+      for (let r = 0; r < REPS_PER_CONDITION; r++) {
+        conditions.push({ type, presence, setSize });
+      }
+    });
+  });
+});
+conditions = shuffle(conditions);
+
+const fixation = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<div class="fixation">+</div>',
+  choices: "NO_KEYS",
+  trial_duration: 500
+};
+
+const search_trial = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function () {
+    const tv = jsPsych.timelineVariable;
+    return generateDisplay(tv('type'), tv('presence'), tv('setSize'));
+  },
+  choices: ['j', 'f'],
+  trial_duration: TRIAL_TIMEOUT,
+  data: function () {
+    const tv = jsPsych.timelineVariable;
+    return { task: 'search', type: tv('type'), presence: tv('presence'), setSize: tv('setSize') };
+  },
+  on_finish: function (data) {
+    const correctKey = data.presence === 'present' ? 'j' : 'f';
+    data.correct = data.response === correctKey;
+  }
+};
+
+timeline.push({
+  timeline: [fixation, search_trial],
+  timeline_variables: conditions
+});
+
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<p>You have finished the task. Calculating your results...</p>',
+  choices: "NO_KEYS",
+  trial_duration: 1000
+});
+
+jsPsych.run(timeline);
+
+/* ============================================================
+   RESULTS
+   ============================================================ */
+function summarize(dataCollection) {
+  // mean RT (correct trials only) for each of the 16 conditions
+  const summary = [];
+  TYPES.forEach(type => {
+    PRESENCE.forEach(presence => {
+      SET_SIZES.forEach(setSize => {
+        const trials = dataCollection.filter({ task: 'search', type, presence, setSize, correct: true });
+        const n = trials.count();
+        const meanRT = n > 0 ? trials.select('rt').mean() : null;
+        summary.push({ type, presence, setSize, meanRT, n });
+      });
+    });
+  });
+  return summary;
+}
+
+function loadGroupData() {
+  try {
+    return JSON.parse(localStorage.getItem(GROUP_DATA_KEY) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveSessionToGroupData(sessionSummary) {
+  const all = loadGroupData();
+  all.push({ timestamp: Date.now(), summary: sessionSummary });
+  localStorage.setItem(GROUP_DATA_KEY, JSON.stringify(all));
+  return all;
+}
+
+function groupAverages(allSessions) {
+  // average meanRT per condition across all stored sessions (including current)
+  const buckets = {};
+  allSessions.forEach(sess => {
+    sess.summary.forEach(row => {
+      if (row.meanRT === null) return;
+      const key = `${row.type}-${row.presence}-${row.setSize}`;
+      if (!buckets[key]) buckets[key] = [];
+      buckets[key].push(row.meanRT);
+    });
+  });
+  const avg = {};
+  Object.keys(buckets).forEach(key => {
+    avg[key] = buckets[key].reduce((a, b) => a + b, 0) / buckets[key].length;
+  });
+  return avg;
+}
+
+function renderResults(dataCollection) {
+  const sessionSummary = summarize(dataCollection);
+  const allSessions = saveSessionToGroupData(sessionSummary);
+  const groupAvg = groupAverages(allSessions);
+
+  document.body.innerHTML = `
+    <div id="results-screen">
+      <h1>Your Results</h1>
+      <p class="note">Group average is computed from ${allSessions.length} session(s) recorded in this browser
+      (via localStorage), including this one. This is a stand-in for a real multi-user backend.</p>
+
+      <h2>Feature Search</h2>
+      <div class="chart-wrap"><canvas id="chart-feature"></canvas></div>
+
+      <h2>Conjunction Search</h2>
+      <div class="chart-wrap"><canvas id="chart-conjunction"></canvas></div>
+
+      <h2>Accuracy summary</h2>
+      <table border="0" cellpadding="6" style="border-collapse:collapse;width:100%;font-size:14px;">
+        <tr style="text-align:left;border-bottom:1px solid #ddd;">
+          <th>Type</th><th>Presence</th><th>Set size</th><th>Mean RT (ms)</th><th>Correct trials</th>
+        </tr>
+        ${sessionSummary.map(r => `
+          <tr style="border-bottom:1px solid #eee;">
+            <td>${r.type}</td><td>${r.presence}</td><td>${r.setSize}</td>
+            <td>${r.meanRT ? Math.round(r.meanRT) : '—'}</td><td>${r.n}</td>
+          </tr>`).join('')}
+      </table>
+    </div>
+  `;
+
+  drawChart('chart-feature', 'feature', sessionSummary, groupAvg);
+  drawChart('chart-conjunction', 'conjunction', sessionSummary, groupAvg);
+}
+
+function drawChart(canvasId, type, sessionSummary, groupAvg) {
+  const getVals = (presence, source) => SET_SIZES.map(setSize => {
+    if (source === 'session') {
+      const row = sessionSummary.find(r => r.type === type && r.presence === presence && r.setSize === setSize);
+      return row && row.meanRT !== null ? Math.round(row.meanRT) : null;
+    } else {
+      const key = `${type}-${presence}-${setSize}`;
+      return groupAvg[key] !== undefined ? Math.round(groupAvg[key]) : null;
+    }
+  });
+
+  new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: SET_SIZES,
+      datasets: [
+        { label: 'You — present', data: getVals('present', 'session'), borderColor: '#3f9142', backgroundColor: '#3f9142', tension: 0.15 },
+        { label: 'You — absent', data: getVals('absent', 'session'), borderColor: '#d64545', backgroundColor: '#d64545', tension: 0.15 },
+        { label: 'Group avg — present', data: getVals('present', 'group'), borderColor: '#3f9142', borderDash: [6, 4], backgroundColor: '#3f9142', tension: 0.15 },
+        { label: 'Group avg — absent', data: getVals('absent', 'group'), borderColor: '#d64545', borderDash: [6, 4], backgroundColor: '#d64545', tension: 0.15 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { title: { display: true, text: 'Set size' } },
+        y: { title: { display: true, text: 'Reaction time (ms)' }, beginAtZero: false }
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
