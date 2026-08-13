@@ -32,13 +32,21 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Use a mounted Render disk if configured (see render.yaml), otherwise
-// fall back to a local file next to this script.
-const DATA_DIR = process.env.DATA_DIR || __dirname;
-const DATA_FILE = path.join(DATA_DIR, 'sessions.json');
-
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// fall back to a local file next to this script. If DATA_DIR is set but
+// isn't actually writable (e.g. no disk attached -- free plan doesn't
+// support persistent disks), fall back instead of crashing.
+let DATA_DIR = process.env.DATA_DIR || __dirname;
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  fs.accessSync(DATA_DIR, fs.constants.W_OK);
+} catch (err) {
+  console.warn(`DATA_DIR "${DATA_DIR}" isn't writable (${err.code}). Falling back to ${__dirname}. ` +
+    `If you meant to use a persistent disk, check it's attached in Render (requires a paid instance type).`);
+  DATA_DIR = __dirname;
 }
+const DATA_FILE = path.join(DATA_DIR, 'sessions.json');
 
 // Restrict allowed origins in production by setting ALLOWED_ORIGIN, e.g.
 // "https://yourname.github.io". Defaults to allowing any origin.
