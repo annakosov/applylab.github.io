@@ -30,8 +30,6 @@
   #jspsych-progressbar-container { display: none; }
   .fixation { font-size: 48px; }
   .stimulus  { font-size: 46px; letter-spacing: 4px; font-weight: 600; }
-  .feedback-correct   { font-size: 28px; color: #1a7f37; }
-  .feedback-incorrect { font-size: 28px; color: #c0392b; }
   #results-screen {
     display:none; max-width: 720px; margin: 40px auto; padding: 24px 32px;
     background:#fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08);
@@ -260,8 +258,8 @@ const post_trial(feedback) = {
     }
     if (feedback==true) {
       return last.correct
-      ? `<p style="font-size:22px;color:${COLOR_CORRECT};">Correct</p>`
-      : `<p style="font-size:22px;color:${COLOR_INCORRECT};">Incorrect</p>`;
+      ? `<p style="font-size:46px;color:${COLOR_CORRECT};">Correct</p>`
+      : `<p style="font-size:46px;color:${COLOR_INCORRECT};">Incorrect</p>`;
     }
   },
   choices: function () {
