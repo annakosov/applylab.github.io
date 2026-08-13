@@ -58,7 +58,7 @@ const GROUP_DATA_KEY = 'vs_experiment_group_data';
 // server.js / render.yaml). Must be https:// if this page is served over
 // https (e.g. GitHub Pages) -- browsers block https pages from calling
 // http:// endpoints. Leave as '' to fall back to browser localStorage only.
-const BACKEND_URL = ''; // e.g. 'https://visual-search-backend.onrender.com'
+const BACKEND_URL = 'https://visual-search-backend-vg16.onrender.com'; // e.g. 'https://visual-search-backend.onrender.com'
 
 let testTrialsCompleted = 0;
 const TOTAL_TEST_TRIALS = TYPES.length * PRESENCE.length * SET_SIZES.length * REPS_PER_CONDITION;
@@ -70,10 +70,10 @@ const jsPsych = initJsPsych({
   on_finish: async function () {
     document.body.innerHTML = '<p style="text-align:center;margin-top:60px;font-size:16px;">Calculating your results...</p>';
     const sessionSummary = summarize(jsPsych.data.get());
-    const allSessions = await saveAndFetchAllSessions(sessionSummary);
-    console.log(`Stored sessions: ${allSessions.length} (including this one)`);
+    const { sessions: allSessions, source } = await saveAndFetchAllSessions(sessionSummary);
+    console.log(`Stored sessions: ${allSessions.length} (including this one, source: ${source})`);
     const groupAvg = groupAverages(allSessions);
-    renderResults(sessionSummary, groupAvg, allSessions.length);
+    renderResults(sessionSummary, groupAvg, allSessions.length, source);
   }
 });
 
@@ -81,15 +81,18 @@ const jsPsych = initJsPsych({
 async function logStoredSessionCount() {
   try {
     let count;
+    let source;
     if (BACKEND_URL) {
       const res = await fetch(`${BACKEND_URL}/sessions`);
       if (!res.ok) throw new Error(`GET failed: ${res.status}`);
       const sessions = await res.json();
       count = sessions.length;
+      source = 'backend';
     } else {
       count = loadGroupData().length;
+      source = 'localStorage';
     }
-    console.log(`Previously stored sessions: ${count}`);
+    console.log(`Previously stored sessions: ${count} (source: ${source})`);
   } catch (err) {
     console.warn('Could not fetch stored session count:', err);
   }
@@ -325,6 +328,7 @@ function saveSessionToGroupData(sessionSummary) {
 
 // POST this session to the backend, then GET all sessions back for the group average.
 // Falls back to localStorage if BACKEND_URL is unset or the backend can't be reached.
+// Returns { sessions, source } so callers know which storage was actually used.
 async function saveAndFetchAllSessions(sessionSummary) {
   if (BACKEND_URL) {
     try {
@@ -337,12 +341,12 @@ async function saveAndFetchAllSessions(sessionSummary) {
 
       const getRes = await fetch(`${BACKEND_URL}/sessions`);
       if (!getRes.ok) throw new Error(`GET failed: ${getRes.status}`);
-      return await getRes.json();
+      return { sessions: await getRes.json(), source: 'backend' };
     } catch (err) {
       console.warn('Backend unreachable, falling back to localStorage:', err);
     }
   }
-  return saveSessionToGroupData(sessionSummary);
+  return { sessions: saveSessionToGroupData(sessionSummary), source: 'localStorage' };
 }
 
 function groupAverages(allSessions) {
@@ -363,11 +367,11 @@ function groupAverages(allSessions) {
   return avg;
 }
 
-function renderResults(sessionSummary, groupAvg, nSessions) {
+function renderResults(sessionSummary, groupAvg, nSessions, source) {
   document.body.innerHTML = `
     <div id="results-screen">
       <h1>Your Results</h1>
-      <p class="note">Group average is computed from ${nSessions} session(s)${BACKEND_URL ? ' recorded on the backend' : ' recorded in this browser (via localStorage)'}, including this one.</p>
+      <p class="note">Group average is computed from ${nSessions} session(s)${source === 'backend' ? ' recorded on the backend' : ' recorded in this browser (via localStorage)'}, including this one.</p>
 
       <h2>Feature Search</h2>
       <div class="chart-wrap"><canvas id="chart-feature"></canvas></div>
