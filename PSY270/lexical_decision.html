@@ -196,7 +196,7 @@ function makeTrial(feedback) {
   return {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: () => `<div class="stimulus">${jsPsych.timelineVariable('stimulus')}</div>`,
-    choices: ['ArrowLeft', 'ArrowRight'],
+    choices: ['arrowleft', 'arrowright'],
     trial_duration: 2000,
     data: () => ({
       task: 'ldt_response',
