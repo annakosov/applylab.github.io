@@ -102,6 +102,10 @@ try {
   console.warn("Firebase init failed, falling back to localStorage.", e);
 }
 
+
+const FEEDBACK_DURATION = 600;  // ms
+const COLOR_CORRECT = '#0072B2';      // blue -- target stimulus, "present" data series
+const COLOR_INCORRECT = '#D55E00';   // vermillion -- incorrect feedback
 /* =========================================================================
    STIMULI — all items are exactly 6 characters long.
    ========================================================================= */
@@ -217,35 +221,59 @@ function makeTrial(feedback) {
 
 // Shown only when the preceding trial timed out (no response) — requires a
 // key press to continue, rather than auto-advancing.
-const timeoutPrompt = {
+// const timeoutPrompt = {
+//   type: jsPsychHtmlKeyboardResponse,
+//   stimulus: '<div class="feedback-incorrect">Too slow! Press any key to continue.</div>',
+//   choices: "ALL_KEYS",
+//   conditional_function: () => {
+//     const last = jsPsych.data.get().last(1).values()[0];
+//     return last.response === null;
+//   }
+// };
+//
+// const practiceFeedback = {
+//   type: jsPsychHtmlKeyboardResponse,
+//   stimulus: () => {
+//     const last = jsPsych.data.get().last(1).values()[0];
+//     return last.correct
+//       ? `<div class="feedback-correct">Correct</div>`
+//       : `<div class="feedback-incorrect">Incorrect</div>`;
+//   },
+//   choices: "NO_KEYS",
+//   trial_duration: 700,
+//   conditional_function: () => {
+//     // Timeout trials already got their own "press any key" prompt above.
+//     const last = jsPsych.data.get().last(1).values()[0];
+//     return last.response !== null;
+//   }
+// };
+const feedback_trial = {
   type: jsPsychHtmlKeyboardResponse,
-  stimulus: '<div class="feedback-incorrect">Too slow! Press any key to continue.</div>',
-  choices: "ALL_KEYS",
-  conditional_function: () => {
+  stimulus: function () {
     const last = jsPsych.data.get().last(1).values()[0];
-    return last.response === null;
-  }
-};
-
-const practiceFeedback = {
-  type: jsPsychHtmlKeyboardResponse,
-  stimulus: () => {
-    const last = jsPsych.data.get().last(1).values()[0];
+    if (last.response === null) {
+      return `
+        <div style="max-width:500px;margin:0 auto;">
+          <p style="font-size:22px;color:#b8860b;">Too slow! You timed out on this trial</p>
+          <p>Press the spacebar to continue to the next trial.</p>
+        </div>`;
+    }
     return last.correct
-      ? `<div class="feedback-correct">Correct</div>`
-      : `<div class="feedback-incorrect">Incorrect</div>`;
+      ? `<p style="font-size:22px;color:${COLOR_CORRECT};">Correct</p>`
+      : `<p style="font-size:22px;color:${COLOR_INCORRECT};">Incorrect</p>`;
   },
-  choices: "NO_KEYS",
-  trial_duration: 700,
-  conditional_function: () => {
-    // Timeout trials already got their own "press any key" prompt above.
+  choices: function () {
     const last = jsPsych.data.get().last(1).values()[0];
-    return last.response !== null;
+    return last.response === null ? [' '] : "NO_KEYS";
+  },
+  trial_duration: function () {
+    const last = jsPsych.data.get().last(1).values()[0];
+    return last.response === null ? null : FEEDBACK_DURATION;
   }
 };
 
 const practiceProcedure = {
-  timeline: [fixation, makeTrial(true), timeoutPrompt, practiceFeedback],
+  timeline: [fixation, makeTrial(true), feedback_trial],
   timeline_variables: practiceItems,
   randomize_order: true
 };
@@ -266,7 +294,7 @@ const transitionToMain = {
 };
 
 const mainProcedure = {
-  timeline: [fixation, makeTrial(false), timeoutPrompt],
+  timeline: [fixation, makeTrial(false), feedback_trial],
   timeline_variables: mainItems,
   randomize_order: true,
   on_timeline_start: () => {
