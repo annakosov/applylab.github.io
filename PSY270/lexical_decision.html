@@ -247,7 +247,7 @@ function makeTrial(feedback) {
 //     return last.response !== null;
 //   }
 // };
-const feedback_trial(accuracyFeedback) = {
+const post_trial(feedback) = {
   type: jsPsychHtmlKeyboardResponse,
   stimulus: function () {
     const last = jsPsych.data.get().last(1).values()[0];
@@ -258,7 +258,7 @@ const feedback_trial(accuracyFeedback) = {
           <p>Press the spacebar to continue to the next trial.</p>
         </div>`;
     }
-    if (accuracyFeedback==true) {
+    if (feedback==true) {
       return last.correct
       ? `<p style="font-size:22px;color:${COLOR_CORRECT};">Correct</p>`
       : `<p style="font-size:22px;color:${COLOR_INCORRECT};">Incorrect</p>`;
@@ -275,7 +275,7 @@ const feedback_trial(accuracyFeedback) = {
 };
 
 const practiceProcedure = {
-  timeline: [fixation, makeTrial(true), feedback_trial(true)],
+  timeline: [fixation, makeTrial(true), post_trial(true)],
   timeline_variables: practiceItems,
   randomize_order: true
 };
@@ -301,7 +301,7 @@ const transitionToMain = {
 };
 
 const mainProcedure = {
-  timeline: [fixation, makeTrial(false), feedback_trial(false)],
+  timeline: [fixation, makeTrial(false), post_trial(false)],
   timeline_variables: mainItems,
   randomize_order: true,
   on_timeline_start: () => {
