@@ -19,7 +19,14 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
 <style>
-  body { margin: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background:#fafafa; }
+  html, body { height: 100%; margin: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background:#fafafa; }
+  #jspsych-target {
+    width: 100%;
+    height: 100vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+  .jspsych-content { max-width: 700px; text-align: center; }
   .fixation { font-size: 48px; }
   .stimulus  { font-size: 46px; letter-spacing: 4px; font-weight: 600; }
   .feedback-correct   { font-size: 28px; color: #1a7f37; }
@@ -137,6 +144,8 @@ const mainItems = [
    ========================================================================= */
 const jsPsych = initJsPsych({
   display_element: 'jspsych-target',
+  show_progress_bar: true,
+  auto_update_progress_bar: true,
   on_finish: () => { runResultsScreen(); }
 });
 
@@ -156,14 +165,19 @@ const instructions = {
      <p>On each trial you will see a string of 6 letters in the middle of the screen.</p>
      <p>Your job is to decide, as quickly and accurately as possible, whether the string
      is a <b>real English word</b> or a <b>made-up non-word</b>.</p>`,
-    `<p>Press <span class="key">F</span> if it IS a real word.</p>
-     <p>Press <span class="key">J</span> if it is NOT a real word (a non-word).</p>
-     <p>Rest your left index finger on <span class="key">F</span> and your right index
-     finger on <span class="key">J</span>.</p>`,
-    `<p>You'll first do a short practice block with feedback, then the main task
-     (no feedback). Respond as fast as you can without sacrificing accuracy.</p>
-     <p>Press "Next" when you're ready to begin the practice block.</p>`
+    `<p>Press the <span class="key">&#8592;</span> LEFT arrow key if it IS a real word.</p>
+     <p>Press the <span class="key">&#8594;</span> RIGHT arrow key if it is NOT a real word
+     (a non-word).</p>
+     <p>Rest your left index finger on the left arrow key and your right index
+     finger on the right arrow key.</p>`,
+    `<p>You'll first do a short practice block of <b>${practiceItems.length} trials</b>
+     with feedback, then the main task of <b>${mainItems.length} trials</b>
+     (no feedback). Respond as fast as you can without sacrificing accuracy.
+     If you don't respond within 2 seconds, the trial will time out.</p>
+     <p>Press the spacebar when you're ready to begin the practice block.</p>`
   ],
+  key_forward: ' ',
+  key_backward: 'ArrowUp',
   show_clickable_nav: true
 };
 
@@ -178,8 +192,8 @@ function makeTrial(feedback) {
   return {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: () => `<div class="stimulus">${jsPsych.timelineVariable('stimulus')}</div>`,
-    choices: ['f', 'j'],
-    trial_duration: 3000,
+    choices: ['arrowleft', 'arrowright'],
+    trial_duration: 2000,
     data: () => ({
       task: 'ldt_response',
       block: feedback ? 'practice' : 'main',
@@ -187,29 +201,43 @@ function makeTrial(feedback) {
       stimulus: jsPsych.timelineVariable('stimulus')
     }),
     on_finish: (data) => {
-      data.correct_response = data.condition === 'word' ? 'f' : 'j';
+      data.correct_response = data.condition === 'word' ? 'arrowleft' : 'arrowright';
       data.correct = data.response === data.correct_response;
     }
   };
 }
 
+// Shown only when the preceding trial timed out (no response) — requires a
+// key press to continue, rather than auto-advancing.
+const timeoutPrompt = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<div class="feedback-incorrect">Too slow! Press any key to continue.</div>',
+  choices: "ALL_KEYS",
+  conditional_function: () => {
+    const last = jsPsych.data.get().last(1).values()[0];
+    return last.response === null;
+  }
+};
+
 const practiceFeedback = {
   type: jsPsychHtmlKeyboardResponse,
   stimulus: () => {
     const last = jsPsych.data.get().last(1).values()[0];
-    if (last.response === null) {
-      return `<div class="feedback-incorrect">Too slow — please respond faster!</div>`;
-    }
     return last.correct
       ? `<div class="feedback-correct">Correct</div>`
       : `<div class="feedback-incorrect">Incorrect</div>`;
   },
   choices: "NO_KEYS",
-  trial_duration: 700
+  trial_duration: 700,
+  conditional_function: () => {
+    // Timeout trials already got their own "press any key" prompt above.
+    const last = jsPsych.data.get().last(1).values()[0];
+    return last.response !== null;
+  }
 };
 
 const practiceProcedure = {
-  timeline: [fixation, makeTrial(true), practiceFeedback],
+  timeline: [fixation, makeTrial(true), timeoutPrompt, practiceFeedback],
   timeline_variables: practiceItems,
   randomize_order: true
 };
@@ -217,14 +245,17 @@ const practiceProcedure = {
 const transitionToMain = {
   type: jsPsychInstructions,
   pages: [
-    `<p>Practice complete. The main task will now begin — there is no feedback
-     this time. Respond as quickly and accurately as you can.</p>`
+    `<p>Practice complete. The main task will now begin: <b>${mainItems.length} trials</b>,
+     with no feedback this time. Respond as quickly and accurately as you can.</p>
+     <p>Press the spacebar when you're ready to begin.</p>`
   ],
+  key_forward: ' ',
+  key_backward: 'ArrowUp',
   show_clickable_nav: true
 };
 
 const mainProcedure = {
-  timeline: [fixation, makeTrial(false)],
+  timeline: [fixation, makeTrial(false), timeoutPrompt],
   timeline_variables: mainItems,
   randomize_order: true
 };
@@ -305,12 +336,12 @@ function renderChart(summary, group) {
       labels: ['Words', 'Non-words'],
       datasets: [
         {
-          label: 'You (this session)',
+          label: 'Your Mean RT',
           data: [summary.mean_rt_word, summary.mean_rt_nonword],
           backgroundColor: '#4C72B0'
         },
         {
-          label: `Group mean (n=${group.n_sessions})`,
+          label: `Class average (${group.n_sessions} people)`,
           data: [group.group_mean_rt_word, group.group_mean_rt_nonword],
           backgroundColor: '#DD8452'
         }
