@@ -12,6 +12,7 @@
 services:
   - type: web
     name: visual-search-backend
+    rootDir: PSY270
     env: node
     plan: free
     buildCommand: npm install
@@ -26,4 +27,3 @@ services:
     #   name: visual-search-data
     #   mountPath: /data
     #   sizeGB: 1
-
