@@ -245,32 +245,35 @@ function makeTrial(feedback) {
 //     return last.response !== null;
 //   }
 // };
-const post_trial(feedback) = {
-  type: jsPsychHtmlKeyboardResponse,
-  stimulus: function () {
-    const last = jsPsych.data.get().last(1).values()[0];
-    if (last.response === null) {
-      return `
-        <div style="max-width:500px;margin:0 auto;">
-          <p style="font-size:22px;color:#b8860b;">Too slow! You timed out on this trial</p>
-          <p>Press the spacebar to continue to the next trial.</p>
-        </div>`;
+function post_trial(feedback) {
+  return {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: function () {
+      const last = jsPsych.data.get().last(1).values()[0];
+      if (last.response === null) {
+        return `
+          <div style="max-width:500px;margin:0 auto;">
+            <p style="font-size:22px;color:#b8860b;">Too slow! You timed out on this trial</p>
+            <p>Press the spacebar to continue to the next trial.</p>
+          </div>`;
+      }
+      if (feedback == true) {
+        return last.correct
+          ? `<p style="font-size:46px;color:${COLOR_CORRECT};">Correct</p>`
+          : `<p style="font-size:46px;color:${COLOR_INCORRECT};">Incorrect</p>`;
+      }
+      return '';
+    },
+    choices: function () {
+      const last = jsPsych.data.get().last(1).values()[0];
+      return last.response === null ? [' '] : "NO_KEYS";
+    },
+    trial_duration: function () {
+      const last = jsPsych.data.get().last(1).values()[0];
+      return last.response === null ? null : FEEDBACK_DURATION;
     }
-    if (feedback==true) {
-      return last.correct
-      ? `<p style="font-size:46px;color:${COLOR_CORRECT};">Correct</p>`
-      : `<p style="font-size:46px;color:${COLOR_INCORRECT};">Incorrect</p>`;
-    }
-  },
-  choices: function () {
-    const last = jsPsych.data.get().last(1).values()[0];
-    return last.response === null ? [' '] : "NO_KEYS";
-  },
-  trial_duration: function () {
-    const last = jsPsych.data.get().last(1).values()[0];
-    return last.response === null ? null : FEEDBACK_DURATION;
-  }
-};
+  };
+}
 
 const practiceProcedure = {
   timeline: [fixation, makeTrial(true), post_trial(true)],
@@ -291,7 +294,7 @@ const transitionToMain = {
   key_forward: ' ',
   allow_backward: false,
   show_clickable_nav: false,
-  show_page_number: false
+  show_page_number: false,
   on_load: function () {
     const bar = document.querySelector('#jspsych-progressbar-container');
     if (bar) bar.style.display = 'block';
