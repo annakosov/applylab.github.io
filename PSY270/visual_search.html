@@ -5,9 +5,9 @@
 <title>Visual Search Experiment</title>
 
 <!-- jsPsych core + plugins -->
-<script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.4"></script>
-<script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/css/jspsych.css">
+<script src="https://unpkg.com/jspsych@7.3.4"></script>
+<script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+<link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css">
 
 <!-- Chart.js for the results plot -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -43,15 +43,23 @@
 const SET_SIZES = [4, 8, 16, 32];
 const TYPES = ['feature', 'conjunction'];
 const PRESENCE = ['present', 'absent'];
-const REPS_PER_CONDITION = 3;   // trials per condition (16 conditions * 3 = 48 trials)
+const REPS_PER_CONDITION = 10;  // trials per condition (16 conditions * 10 = 160 test trials)
+const N_PRACTICE_TRIALS = 10;
 const DISPLAY_SIZE = 520;       // px, square search area
 const GRID_COLS = 8;
 const GRID_ROWS = 8;
 const ITEM_SIZE = 30;           // px
 const TRIAL_TIMEOUT = 8000;     // ms
+const FEEDBACK_DURATION = 600;  // ms
 const GROUP_DATA_KEY = 'vs_experiment_group_data';
 
+let testTrialsCompleted = 0;
+const TOTAL_TEST_TRIALS = TYPES.length * PRESENCE.length * SET_SIZES.length * REPS_PER_CONDITION;
+
 const jsPsych = initJsPsych({
+  show_progress_bar: true,
+  auto_update_progress_bar: false,
+  message_progress_bar: 'Progress',
   on_finish: function () {
     document.body.innerHTML = '';
     renderResults(jsPsych.data.get());
@@ -109,7 +117,7 @@ function generateDisplay(type, presence, setSize) {
     html += `<div style="position:absolute;left:${left}px;top:${top}px;width:${ITEM_SIZE}px;height:${ITEM_SIZE}px;background:${item.color};border-radius:${radius};"></div>`;
   });
   html += `</div>
-    <p style="margin-top:18px;font-size:16px;">Press <b>J</b> if the <span style="color:#3f9142;">green circle</span> is present &nbsp;|&nbsp; <b>F</b> if it is absent</p>`;
+    <p style="margin-top:18px;font-size:16px;">Press <b>&larr;</b> if the <span style="color:#3f9142;">green circle</span> is absent &nbsp;|&nbsp; <b>&rarr;</b> if it is present</p>`;
 
   return html;
 }
@@ -127,25 +135,37 @@ timeline.push({
       <p>On each trial you will briefly see a display of shapes. Your job is to decide,
       as quickly and accurately as possible, whether a <b style="color:#3f9142;">green circle</b>
       is present among the other shapes.</p>
-      <p>Press <b>J</b> if the green circle is <b>present</b>.<br>
-      Press <b>F</b> if the green circle is <b>absent</b>.</p>
-      <p>Press the spacebar to begin.</p>
+      <p>Press the <b>right arrow</b> if the green circle is <b>present</b>.<br>
+      Press the <b>left arrow</b> if the green circle is <b>absent</b>.</p>
+      <p>You'll start with a short practice block of ${N_PRACTICE_TRIALS} trials, then move on
+      to the main experiment (${TOTAL_TEST_TRIALS} trials).</p>
+      <p>Press the spacebar to begin the practice block.</p>
     </div>`,
   choices: [' ']
 });
 
-// Build the full factorial condition list, repeated
-let conditions = [];
+function sampleConditionPool() {
+  const all = [];
+  TYPES.forEach(type => PRESENCE.forEach(presence => SET_SIZES.forEach(setSize => all.push({ type, presence, setSize }))));
+  return all;
+}
+
+// Practice conditions: a random sample across the condition space
+const practiceConditions = shuffle(sampleConditionPool()).slice(0, N_PRACTICE_TRIALS)
+  .map(c => Object.assign({ phase: 'practice' }, c));
+
+// Test conditions: full factorial, repeated, shuffled
+let testConditions = [];
 TYPES.forEach(type => {
   PRESENCE.forEach(presence => {
     SET_SIZES.forEach(setSize => {
       for (let r = 0; r < REPS_PER_CONDITION; r++) {
-        conditions.push({ type, presence, setSize });
+        testConditions.push({ type, presence, setSize, phase: 'test' });
       }
     });
   });
 });
-conditions = shuffle(conditions);
+testConditions = shuffle(testConditions);
 
 const fixation = {
   type: jsPsychHtmlKeyboardResponse,
@@ -160,21 +180,59 @@ const search_trial = {
     const tv = jsPsych.timelineVariable;
     return generateDisplay(tv('type'), tv('presence'), tv('setSize'));
   },
-  choices: ['j', 'f'],
+  choices: ['arrowleft', 'arrowright'],
   trial_duration: TRIAL_TIMEOUT,
   data: function () {
     const tv = jsPsych.timelineVariable;
-    return { task: 'search', type: tv('type'), presence: tv('presence'), setSize: tv('setSize') };
+    return { task: 'search', type: tv('type'), presence: tv('presence'), setSize: tv('setSize'), phase: tv('phase') };
   },
   on_finish: function (data) {
-    const correctKey = data.presence === 'present' ? 'j' : 'f';
+    const correctKey = data.presence === 'present' ? 'arrowright' : 'arrowleft';
     data.correct = data.response === correctKey;
+    if (data.phase === 'test') {
+      testTrialsCompleted++;
+      jsPsych.setProgressBar(testTrialsCompleted / TOTAL_TEST_TRIALS);
+    }
   }
 };
 
+const feedback_trial = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function () {
+    const last = jsPsych.data.get().last(1).values()[0];
+    if (last.response === null) {
+      return '<p style="font-size:22px;color:#b8860b;">No response detected</p>';
+    }
+    return last.correct
+      ? '<p style="font-size:22px;color:#3f9142;">Correct</p>'
+      : '<p style="font-size:22px;color:#d64545;">Incorrect</p>';
+  },
+  choices: "NO_KEYS",
+  trial_duration: FEEDBACK_DURATION
+};
+
+// Practice block
 timeline.push({
-  timeline: [fixation, search_trial],
-  timeline_variables: conditions
+  timeline: [fixation, search_trial, feedback_trial],
+  timeline_variables: practiceConditions
+});
+
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <div style="max-width:600px;margin:0 auto;text-align:left;">
+      <h2>Practice complete</h2>
+      <p>Now the main experiment begins (${TOTAL_TEST_TRIALS} trials). Feedback will still be shown
+      after each trial. Respond as quickly and accurately as you can.</p>
+      <p>Press the spacebar to begin.</p>
+    </div>`,
+  choices: [' ']
+});
+
+// Main test block
+timeline.push({
+  timeline: [fixation, search_trial, feedback_trial],
+  timeline_variables: testConditions
 });
 
 timeline.push({
@@ -195,7 +253,7 @@ function summarize(dataCollection) {
   TYPES.forEach(type => {
     PRESENCE.forEach(presence => {
       SET_SIZES.forEach(setSize => {
-        const trials = dataCollection.filter({ task: 'search', type, presence, setSize, correct: true });
+        const trials = dataCollection.filter({ task: 'search', phase: 'test', type, presence, setSize, correct: true });
         const n = trials.count();
         const meanRT = n > 0 ? trials.select('rt').mean() : null;
         summary.push({ type, presence, setSize, meanRT, n });
@@ -254,18 +312,6 @@ function renderResults(dataCollection) {
 
       <h2>Conjunction Search</h2>
       <div class="chart-wrap"><canvas id="chart-conjunction"></canvas></div>
-
-      <h2>Accuracy summary</h2>
-      <table border="0" cellpadding="6" style="border-collapse:collapse;width:100%;font-size:14px;">
-        <tr style="text-align:left;border-bottom:1px solid #ddd;">
-          <th>Type</th><th>Presence</th><th>Set size</th><th>Mean RT (ms)</th><th>Correct trials</th>
-        </tr>
-        ${sessionSummary.map(r => `
-          <tr style="border-bottom:1px solid #eee;">
-            <td>${r.type}</td><td>${r.presence}</td><td>${r.setSize}</td>
-            <td>${r.meanRT ? Math.round(r.meanRT) : '—'}</td><td>${r.n}</td>
-          </tr>`).join('')}
-      </table>
     </div>
   `;
 
@@ -285,14 +331,14 @@ function drawChart(canvasId, type, sessionSummary, groupAvg) {
   });
 
   new Chart(document.getElementById(canvasId), {
-    type: 'line',
+    type: 'bar',
     data: {
       labels: SET_SIZES,
       datasets: [
-        { label: 'You — present', data: getVals('present', 'session'), borderColor: '#3f9142', backgroundColor: '#3f9142', tension: 0.15 },
-        { label: 'You — absent', data: getVals('absent', 'session'), borderColor: '#d64545', backgroundColor: '#d64545', tension: 0.15 },
-        { label: 'Group avg — present', data: getVals('present', 'group'), borderColor: '#3f9142', borderDash: [6, 4], backgroundColor: '#3f9142', tension: 0.15 },
-        { label: 'Group avg — absent', data: getVals('absent', 'group'), borderColor: '#d64545', borderDash: [6, 4], backgroundColor: '#d64545', tension: 0.15 }
+        { label: 'You — present', data: getVals('present', 'session'), backgroundColor: '#3f9142' },
+        { label: 'You — absent', data: getVals('absent', 'session'), backgroundColor: '#d64545' },
+        { label: 'Group avg — present', data: getVals('present', 'group'), backgroundColor: 'rgba(63,145,66,0.35)' },
+        { label: 'Group avg — absent', data: getVals('absent', 'group'), backgroundColor: 'rgba(214,69,69,0.35)' }
       ]
     },
     options: {
@@ -300,7 +346,7 @@ function drawChart(canvasId, type, sessionSummary, groupAvg) {
       maintainAspectRatio: false,
       scales: {
         x: { title: { display: true, text: 'Set size' } },
-        y: { title: { display: true, text: 'Reaction time (ms)' }, beginAtZero: false }
+        y: { title: { display: true, text: 'Reaction time (ms)' }, beginAtZero: true }
       }
     }
   });
