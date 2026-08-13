@@ -286,6 +286,7 @@ const transitionToMain = {
     `<div style="text-align:left;">
        <p>Practice complete. The main task will now begin: <b>${mainItems.length} trials</b>,
        with no feedback this time. Respond as quickly and accurately as you can.</p>
+       <p>A progress bar will now appear above the display to show how far through the experiment you are.</p>
        <p>Press the spacebar to begin.</p>
      </div>`
   ],
@@ -293,6 +294,10 @@ const transitionToMain = {
   allow_backward: false,
   show_clickable_nav: false,
   show_page_number: false
+  on_load: function () {
+    const bar = document.querySelector('#jspsych-progressbar-container');
+    if (bar) bar.style.display = 'block';
+  }
 };
 
 const mainProcedure = {
@@ -303,10 +308,10 @@ const mainProcedure = {
     mainTrialsCompleted = 0;
     jsPsych.setProgressBar(0);
     document.getElementById('jspsych-progressbar-container').style.display = '';
-  },
-  on_timeline_finish: () => {
-    document.getElementById('jspsych-progressbar-container').style.display = 'none';
   }
+  // on_timeline_finish: () => {
+  //   document.getElementById('jspsych-progressbar-container').style.display = 'none';
+  // }
 };
 
 const timeline = [preload, instructions, practiceProcedure, transitionToMain, mainProcedure];
