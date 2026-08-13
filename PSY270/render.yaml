@@ -10,6 +10,7 @@
 services:
   - type: web
     name: visual-search-backend
+    rootDir: PSY270
     env: node
     plan: free
     buildCommand: npm install
