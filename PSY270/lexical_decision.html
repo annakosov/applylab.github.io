@@ -147,6 +147,7 @@ const jsPsych = initJsPsych({
   display_element: 'jspsych-target',
   show_progress_bar: true,
   auto_update_progress_bar: false,
+  message_progress_bar: 'Progress',
   on_finish: () => { runResultsScreen(); }
 });
 
@@ -164,9 +165,9 @@ const instructions = {
   pages: [
     `<div style="text-align:left;">
        <h2>Lexical Decision Task</h2>
-       <p>On each trial you will see a string of 6 letters in the middle of the screen.</p>
-       <p>Your job is to decide, as quickly and accurately as possible, whether the string
-       is a <b>real English word</b> or a <b>made-up non-word</b>.</p>
+       <p>On each trial you will see a set of 6 letters in the middle of the screen.</p>
+       <p>Your job is to decide, as quickly and accurately as possible, whether the letters
+       form a <b>real English word</b> or a <b>made-up non-word</b>.</p>
        <p>Press the <span class="key">&#8592;</span> LEFT arrow key if it IS a real word.</p>
        <p>Press the <span class="key">&#8594;</span> RIGHT arrow key if it is NOT a real word
        (a non-word).</p>
