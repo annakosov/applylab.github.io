@@ -168,8 +168,8 @@ const instructions = {
        <p>On each trial you will see a set of 6 letters in the middle of the screen.</p>
        <p>Your job is to decide, as quickly and accurately as possible, whether the letters
        form a <b>real English word</b> or a <b>made-up non-word</b>.</p>
-       <p>Press the <span class="key">&#8592;</span> LEFT arrow key if it IS a real word.</p>
-       <p>Press the <span class="key">&#8594;</span> RIGHT arrow key if it is NOT a real word
+       <p>Press the <span class="key">&#8592;</span> RIGHT arrow key if it IS a real word.</p>
+       <p>Press the <span class="key">&#8594;</span> LEFT arrow key if it is NOT a real word
        (a non-word).</p>
        <p>You'll first do a short practice block of <b>${practiceItems.length} trials</b>
        with feedback, then the main task of <b>${mainItems.length} trials</b>
@@ -197,7 +197,7 @@ function makeTrial(feedback) {
   return {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: () => `<div class="stimulus">${jsPsych.timelineVariable('stimulus')}</div>`,
-    choices: ['arrowleft', 'arrowright'],
+    choices: ['arrowright', 'arrowleft'],
     trial_duration: 2000,
     data: () => ({
       task: 'ldt_response',
@@ -206,7 +206,7 @@ function makeTrial(feedback) {
       stimulus: jsPsych.timelineVariable('stimulus')
     }),
     on_finish: (data) => {
-      data.correct_response = data.condition === 'word' ? 'ArrowLeft' : 'ArrowRight';
+      data.correct_response = data.condition === 'word' ? 'arrowright' : 'arrowleft';
       data.correct = data.response === data.correct_response;
       if (!feedback) {
         mainTrialsCompleted++;
