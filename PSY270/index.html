@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PSY270 Online Labs</title>
+<style>
+  :root {
+    --ink: #1b1b1f;
+    --paper: #f7f6f3;
+    --accent: #3d5a80;
+    --accent-hover: #2c4360;
+    --rule: #d8d5cd;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--paper);
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    padding: 24px;
+  }
+
+  main {
+    text-align: center;
+    max-width: 520px;
+    width: 100%;
+  }
+
+  .eyebrow {
+    font-size: 0.75rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #7a776e;
+    margin: 0 0 12px;
+  }
+
+  h1 {
+    font-size: clamp(1.9rem, 4vw, 2.6rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+  }
+
+  h2 {
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: #5f5c53;
+    margin: 0;
+  }
+
+  .divider {
+    width: 48px;
+    height: 2px;
+    background: var(--accent);
+    margin: 20px auto 36px;
+    border: none;
+  }
+
+  .lab-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .lab-button {
+    flex: 1 1 200px;
+    max-width: 220px;
+    padding: 16px 20px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ink);
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .lab-button .label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+
+  .lab-button:hover {
+    border-color: var(--accent);
+    background: #fbfaf8;
+    transform: translateY(-2px);
+  }
+
+  .lab-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lab-button {
+      transition: none;
+    }
+    .lab-button:hover {
+      transform: none;
+    }
+  }
+</style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Cognition: The Machinery of the Mind</p>
+    <h1>PSY270 Online Labs</h1>
+    <hr class="divider">
+    <div class="lab-buttons">
+      <a class="lab-button" href="#" role="button">
+        <span class="label">Lab 1</span>
+        Visual Search
+      </a>
+      <a class="lab-button" href="#" role="button">
+        <span class="label">Lab 2</span>
+        Lexical Decision
+      </a>
+    </div>
+  </main>
+</body>
+</html>
