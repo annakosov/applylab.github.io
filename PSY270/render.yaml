@@ -1,0 +1,26 @@
+# Render Blueprint: New -> Blueprint -> select the repo containing this file.
+# Deploys the visual search backend as a web service.
+#
+# The "disk" block gives sessions.json persistence across restarts/redeploys,
+# but persistent disks require a paid instance type (not the free plan).
+# If you're on the free plan, delete the "disk" block and the DATA_DIR envVar
+# below -- the service will still work, it just won't retain data between
+# restarts/redeploys/idle-spindowns.
+
+services:
+  - type: web
+    name: visual-search-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: ALLOWED_ORIGIN
+        value: "*"   # tighten to your GitHub Pages origin once deployed, e.g. https://yourname.github.io
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: visual-search-data
+      mountPath: /data
+      sizeGB: 1
