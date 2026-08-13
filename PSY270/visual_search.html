@@ -32,6 +32,7 @@
   #results-screen h2 { margin-top: 28px; }
   .chart-wrap { position: relative; height: 340px; margin-bottom: 24px; }
   .note { color: #666; font-size: 13px; }
+  #jspsych-progressbar-container { display: none; }
 </style>
 </head>
 <body>
@@ -53,6 +54,12 @@ const TRIAL_TIMEOUT = 8000;     // ms
 const FEEDBACK_DURATION = 600;  // ms
 const GROUP_DATA_KEY = 'vs_experiment_group_data';
 
+// Point this at your deployed backend to store sessions server-side (see
+// server.js / render.yaml). Must be https:// if this page is served over
+// https (e.g. GitHub Pages) -- browsers block https pages from calling
+// http:// endpoints. Leave as '' to fall back to browser localStorage only.
+const BACKEND_URL = ''; // e.g. 'https://visual-search-backend.onrender.com'
+
 let testTrialsCompleted = 0;
 const TOTAL_TEST_TRIALS = TYPES.length * PRESENCE.length * SET_SIZES.length * REPS_PER_CONDITION;
 
@@ -60,9 +67,12 @@ const jsPsych = initJsPsych({
   show_progress_bar: true,
   auto_update_progress_bar: false,
   message_progress_bar: 'Progress',
-  on_finish: function () {
-    document.body.innerHTML = '';
-    renderResults(jsPsych.data.get());
+  on_finish: async function () {
+    document.body.innerHTML = '<p style="text-align:center;margin-top:60px;font-size:16px;">Calculating your results...</p>';
+    const sessionSummary = summarize(jsPsych.data.get());
+    const allSessions = await saveAndFetchAllSessions(sessionSummary);
+    const groupAvg = groupAverages(allSessions);
+    renderResults(sessionSummary, groupAvg, allSessions.length);
   }
 });
 
@@ -201,14 +211,24 @@ const feedback_trial = {
   stimulus: function () {
     const last = jsPsych.data.get().last(1).values()[0];
     if (last.response === null) {
-      return '<p style="font-size:22px;color:#b8860b;">No response detected</p>';
+      return `
+        <div style="max-width:500px;margin:0 auto;">
+          <p style="font-size:22px;color:#b8860b;">You timed out on this trial</p>
+          <p>Press the spacebar to continue to the next trial.</p>
+        </div>`;
     }
     return last.correct
       ? '<p style="font-size:22px;color:#3f9142;">Correct</p>'
       : '<p style="font-size:22px;color:#d64545;">Incorrect</p>';
   },
-  choices: "NO_KEYS",
-  trial_duration: FEEDBACK_DURATION
+  choices: function () {
+    const last = jsPsych.data.get().last(1).values()[0];
+    return last.response === null ? [' '] : "NO_KEYS";
+  },
+  trial_duration: function () {
+    const last = jsPsych.data.get().last(1).values()[0];
+    return last.response === null ? null : FEEDBACK_DURATION;
+  }
 };
 
 // Practice block
@@ -224,9 +244,14 @@ timeline.push({
       <h2>Practice complete</h2>
       <p>Now the main experiment begins (${TOTAL_TEST_TRIALS} trials). Feedback will still be shown
       after each trial. Respond as quickly and accurately as you can.</p>
+      <p>A progress bar will now appear above the display to show how far through the experiment you are.</p>
       <p>Press the spacebar to begin.</p>
     </div>`,
-  choices: [' ']
+  choices: [' '],
+  on_load: function () {
+    const bar = document.querySelector('#jspsych-progressbar-container');
+    if (bar) bar.style.display = 'block';
+  }
 });
 
 // Main test block
@@ -278,6 +303,28 @@ function saveSessionToGroupData(sessionSummary) {
   return all;
 }
 
+// POST this session to the backend, then GET all sessions back for the group average.
+// Falls back to localStorage if BACKEND_URL is unset or the backend can't be reached.
+async function saveAndFetchAllSessions(sessionSummary) {
+  if (BACKEND_URL) {
+    try {
+      const postRes = await fetch(`${BACKEND_URL}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timestamp: Date.now(), summary: sessionSummary })
+      });
+      if (!postRes.ok) throw new Error(`POST failed: ${postRes.status}`);
+
+      const getRes = await fetch(`${BACKEND_URL}/sessions`);
+      if (!getRes.ok) throw new Error(`GET failed: ${getRes.status}`);
+      return await getRes.json();
+    } catch (err) {
+      console.warn('Backend unreachable, falling back to localStorage:', err);
+    }
+  }
+  return saveSessionToGroupData(sessionSummary);
+}
+
 function groupAverages(allSessions) {
   // average meanRT per condition across all stored sessions (including current)
   const buckets = {};
@@ -296,16 +343,11 @@ function groupAverages(allSessions) {
   return avg;
 }
 
-function renderResults(dataCollection) {
-  const sessionSummary = summarize(dataCollection);
-  const allSessions = saveSessionToGroupData(sessionSummary);
-  const groupAvg = groupAverages(allSessions);
-
+function renderResults(sessionSummary, groupAvg, nSessions) {
   document.body.innerHTML = `
     <div id="results-screen">
       <h1>Your Results</h1>
-      <p class="note">Group average is computed from ${allSessions.length} session(s) recorded in this browser
-      (via localStorage), including this one. This is a stand-in for a real multi-user backend.</p>
+      <p class="note">Group average is computed from ${nSessions} session(s)${BACKEND_URL ? ' recorded on the backend' : ' recorded in this browser (via localStorage)'}, including this one.</p>
 
       <h2>Feature Search</h2>
       <div class="chart-wrap"><canvas id="chart-feature"></canvas></div>
