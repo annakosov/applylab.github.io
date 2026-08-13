@@ -58,7 +58,7 @@ const GROUP_DATA_KEY = 'vs_experiment_group_data';
 // server.js / render.yaml). Must be https:// if this page is served over
 // https (e.g. GitHub Pages) -- browsers block https pages from calling
 // http:// endpoints. Leave as '' to fall back to browser localStorage only.
-const BACKEND_URL = 'https://visual-search-backend-vg16.onrender.com'; //// e.g. 'https://visual-search-backend.onrender.com'
+const BACKEND_URL = ''; // e.g. 'https://visual-search-backend.onrender.com'
 
 let testTrialsCompleted = 0;
 const TOTAL_TEST_TRIALS = TYPES.length * PRESENCE.length * SET_SIZES.length * REPS_PER_CONDITION;
@@ -71,10 +71,30 @@ const jsPsych = initJsPsych({
     document.body.innerHTML = '<p style="text-align:center;margin-top:60px;font-size:16px;">Calculating your results...</p>';
     const sessionSummary = summarize(jsPsych.data.get());
     const allSessions = await saveAndFetchAllSessions(sessionSummary);
+    console.log(`Stored sessions: ${allSessions.length} (including this one)`);
     const groupAvg = groupAverages(allSessions);
     renderResults(sessionSummary, groupAvg, allSessions.length);
   }
 });
+
+// Log how many sessions are already stored, before this session starts.
+async function logStoredSessionCount() {
+  try {
+    let count;
+    if (BACKEND_URL) {
+      const res = await fetch(`${BACKEND_URL}/sessions`);
+      if (!res.ok) throw new Error(`GET failed: ${res.status}`);
+      const sessions = await res.json();
+      count = sessions.length;
+    } else {
+      count = loadGroupData().length;
+    }
+    console.log(`Previously stored sessions: ${count}`);
+  } catch (err) {
+    console.warn('Could not fetch stored session count:', err);
+  }
+}
+logStoredSessionCount();
 
 /* ============================================================
    HELPERS
