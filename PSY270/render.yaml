@@ -22,5 +22,5 @@ services:
         value: /data
     disk:
       name: visual-search-data
-      mountPath: /data
+      #mountPath: /data
       sizeGB: 1
