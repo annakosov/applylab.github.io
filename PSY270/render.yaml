@@ -20,7 +20,7 @@ services:
         value: "*"   # tighten to your GitHub Pages origin once deployed, e.g. https://yourname.github.io
       - key: DATA_DIR
         value: /data
-    disk:
-      name: visual-search-data
+    #disk:
+      #name: visual-search-data
       #mountPath: /data
-      sizeGB: 1
+      #sizeGB: 1
