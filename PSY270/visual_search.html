@@ -29,9 +29,15 @@
     border-radius: 8px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.15);
   }
-  #results-screen h2 { margin-top: 28px; }
-  .chart-wrap { position: relative; height: 340px; margin-bottom: 24px; }
-  .note { color: #666; font-size: 13px; }
+  #results-screen h2 { margin-top: 0; }
+  .charts-row { display: flex; gap: 20px; flex-wrap: wrap; }
+  .chart-panel {
+    flex: 1 1 360px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .chart-wrap { position: relative; height: 360px; }
   #jspsych-progressbar-container { display: none; }
 </style>
 </head>
@@ -61,17 +67,21 @@ const FEEDBACK_DURATION = 600;  // ms
 const GROUP_DATA_KEY = 'vs_experiment_group_data'; // localStorage fallback key
 const SESSIONS_COLLECTION = 'visual_search_sessions'; // Firestore collection name
 
+// Colourblind-friendly palette (Okabe-Ito)
+const COLOR_TARGET = '#0072B2';      // blue -- target stimulus, "present" data series
+const COLOR_DISTRACTOR = '#E69F00';  // orange -- distractor stimulus, "absent" data series
+const COLOR_INCORRECT = '#D55E00';   // vermillion -- incorrect feedback
+
 // Fill this in with your own project's config (Firebase console -> Project
 // settings -> General -> Your apps -> SDK setup and configuration -> Config).
 // Leave apiKey as the placeholder to fall back to browser localStorage only.
-// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBNpcMDPhdfJTw3n-r-sWzbDFMGg9Cm1Wk",
-  authDomain: "visual-search-f05ca.firebaseapp.com",
-  projectId: "visual-search-f05ca",
-  storageBucket: "visual-search-f05ca.firebasestorage.app",
-  messagingSenderId: "1063113231608",
-  appId: "1:1063113231608:web:e97d081ae5e1c8dcdbff0d"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 let db = null;
@@ -145,17 +155,17 @@ function generateDisplay(type, presence, setSize) {
   let items = [];
 
   if (type === 'feature') {
-    // Distractors differ from the target by color only (all red circles) -> pop-out
-    for (let i = 0; i < distractorCount; i++) items.push({ shape: 'circle', color: '#d64545' });
+    // Distractors differ from the target by color only (all orange circles) -> pop-out
+    for (let i = 0; i < distractorCount; i++) items.push({ shape: 'circle', color: COLOR_DISTRACTOR });
   } else {
     // Conjunction: distractors share color OR shape with the target, never both
     const halfA = Math.ceil(distractorCount / 2);
     const halfB = distractorCount - halfA;
-    for (let i = 0; i < halfA; i++) items.push({ shape: 'circle', color: '#d64545' }); // red circles
-    for (let i = 0; i < halfB; i++) items.push({ shape: 'square', color: '#3f9142' }); // green squares
+    for (let i = 0; i < halfA; i++) items.push({ shape: 'circle', color: COLOR_DISTRACTOR }); // orange circles
+    for (let i = 0; i < halfB; i++) items.push({ shape: 'square', color: COLOR_TARGET });      // blue squares
   }
 
-  if (presence === 'present') items.push({ shape: 'circle', color: '#3f9142', isTarget: true });
+  if (presence === 'present') items.push({ shape: 'circle', color: COLOR_TARGET, isTarget: true });
 
   items = shuffle(items);
 
@@ -168,11 +178,11 @@ function generateDisplay(type, presence, setSize) {
     const jitterY = Math.random() * 14 - 7;
     const left = col * cellW + cellW / 2 - ITEM_SIZE / 2 + jitterX;
     const top = row * cellH + cellH / 2 - ITEM_SIZE / 2 + jitterY;
-    const radius = item.shape === 'circle' ? '50%' : '4px';
+    const radius = item.shape === 'circle' ? '50%' : '0';
     html += `<div style="position:absolute;left:${left}px;top:${top}px;width:${ITEM_SIZE}px;height:${ITEM_SIZE}px;background:${item.color};border-radius:${radius};"></div>`;
   });
   html += `</div>
-    <p style="margin-top:18px;font-size:16px;">Press <b>&larr;</b> if the <span style="color:#3f9142;">green circle</span> is absent &nbsp;|&nbsp; <b>&rarr;</b> if it is present</p>`;
+    <p style="margin-top:18px;font-size:16px;">Press <b>&larr;</b> if the <span style="color:${COLOR_TARGET};">blue circle</span> is absent &nbsp;|&nbsp; <b>&rarr;</b> if it is present</p>`;
 
   return html;
 }
@@ -188,10 +198,10 @@ timeline.push({
     <div style="max-width:600px;margin:0 auto;text-align:left;">
       <h2>Visual Search Task</h2>
       <p>On each trial you will briefly see a display of shapes. Your job is to decide,
-      as quickly and accurately as possible, whether a <b style="color:#3f9142;">green circle</b>
+      as quickly and accurately as possible, whether a <b style="color:${COLOR_TARGET};">blue circle</b>
       is present among the other shapes.</p>
-      <p>Press the <b>right arrow</b> if the green circle is <b>present</b>.<br>
-      Press the <b>left arrow</b> if the green circle is <b>absent</b>.</p>
+      <p>Press the <b>right arrow</b> if the blue circle is <b>present</b>.<br>
+      Press the <b>left arrow</b> if the blue circle is <b>absent</b>.</p>
       <p>You'll start with a short practice block of ${N_PRACTICE_TRIALS} trials, then move on
       to the main experiment (${TOTAL_TEST_TRIALS} trials).</p>
       <p>Press the spacebar to begin the practice block.</p>
@@ -263,8 +273,8 @@ const feedback_trial = {
         </div>`;
     }
     return last.correct
-      ? '<p style="font-size:22px;color:#3f9142;">Correct</p>'
-      : '<p style="font-size:22px;color:#d64545;">Incorrect</p>';
+      ? `<p style="font-size:22px;color:${COLOR_TARGET};">Correct</p>`
+      : `<p style="font-size:22px;color:${COLOR_INCORRECT};">Incorrect</p>`;
   },
   choices: function () {
     const last = jsPsych.data.get().last(1).values()[0];
@@ -318,7 +328,9 @@ jsPsych.run(timeline);
    RESULTS
    ============================================================ */
 function summarize(dataCollection) {
-  // mean RT (correct trials only) for each of the 16 conditions
+  // mean RT for each of the 16 conditions, correct trials only.
+  // Timed-out trials (response === null) are excluded -- they're marked
+  // correct: false in on_finish, so the correct:true filter already omits them.
   const summary = [];
   TYPES.forEach(type => {
     PRESENCE.forEach(presence => {
@@ -390,21 +402,35 @@ function renderResults(sessionSummary, groupAvg, nSessions, source) {
   document.body.innerHTML = `
     <div id="results-screen">
       <h1>Your Results</h1>
-      <p class="note">Group average is computed from ${nSessions} session(s)${source === 'firebase' ? ' recorded in Firebase' : ' recorded in this browser (via localStorage)'}, including this one.</p>
-
-      <h2>Feature Search</h2>
-      <div class="chart-wrap"><canvas id="chart-feature"></canvas></div>
-
-      <h2>Conjunction Search</h2>
-      <div class="chart-wrap"><canvas id="chart-conjunction"></canvas></div>
+      <div class="charts-row">
+        <div class="chart-panel">
+          <h2>Feature Search</h2>
+          <div class="chart-wrap"><canvas id="chart-feature"></canvas></div>
+        </div>
+        <div class="chart-panel">
+          <h2>Conjunction Search</h2>
+          <div class="chart-wrap"><canvas id="chart-conjunction"></canvas></div>
+        </div>
+      </div>
     </div>
   `;
 
-  drawChart('chart-feature', 'feature', sessionSummary, groupAvg);
-  drawChart('chart-conjunction', 'conjunction', sessionSummary, groupAvg);
+  const sharedYMax = computeSharedYMax(sessionSummary, groupAvg);
+  drawChart('chart-feature', 'feature', sessionSummary, groupAvg, nSessions, sharedYMax);
+  drawChart('chart-conjunction', 'conjunction', sessionSummary, groupAvg, nSessions, sharedYMax);
 }
 
-function drawChart(canvasId, type, sessionSummary, groupAvg) {
+// So both panels share the same y-axis scale, find the largest value that
+// will appear across either chart and round up a bit of headroom.
+function computeSharedYMax(sessionSummary, groupAvg) {
+  const values = [];
+  sessionSummary.forEach(r => { if (r.meanRT !== null) values.push(r.meanRT); });
+  Object.values(groupAvg).forEach(v => values.push(v));
+  const max = values.length ? Math.max(...values) : 1000;
+  return Math.ceil((max * 1.1) / 100) * 100;
+}
+
+function drawChart(canvasId, type, sessionSummary, groupAvg, nSessions, yMax) {
   const getVals = (presence, source) => SET_SIZES.map(setSize => {
     if (source === 'session') {
       const row = sessionSummary.find(r => r.type === type && r.presence === presence && r.setSize === setSize);
@@ -420,18 +446,31 @@ function drawChart(canvasId, type, sessionSummary, groupAvg) {
     data: {
       labels: SET_SIZES,
       datasets: [
-        { label: 'You — present', data: getVals('present', 'session'), backgroundColor: '#3f9142' },
-        { label: 'You — absent', data: getVals('absent', 'session'), backgroundColor: '#d64545' },
-        { label: 'Group avg — present', data: getVals('present', 'group'), backgroundColor: 'rgba(63,145,66,0.35)' },
-        { label: 'Group avg — absent', data: getVals('absent', 'group'), backgroundColor: 'rgba(214,69,69,0.35)' }
+        { label: 'You — Present', data: getVals('present', 'session'), backgroundColor: COLOR_TARGET },
+        { label: 'You — Absent', data: getVals('absent', 'session'), backgroundColor: COLOR_DISTRACTOR },
+        { label: `Class Average — Present (Size: ${nSessions})`, data: getVals('present', 'group'), backgroundColor: 'rgba(0,114,178,0.35)' },
+        { label: `Class Average — Absent (Size: ${nSessions})`, data: getVals('absent', 'group'), backgroundColor: 'rgba(230,159,0,0.35)' }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { font: { size: 14 } }
+        }
+      },
       scales: {
-        x: { title: { display: true, text: 'Set size' } },
-        y: { title: { display: true, text: 'Reaction time (ms)' }, beginAtZero: true }
+        x: {
+          title: { display: true, text: 'Set size', font: { size: 15 } },
+          ticks: { font: { size: 13 } }
+        },
+        y: {
+          title: { display: true, text: 'Reaction time (ms)', font: { size: 15 } },
+          ticks: { font: { size: 13 } },
+          beginAtZero: true,
+          max: yMax
+        }
       }
     }
   });
