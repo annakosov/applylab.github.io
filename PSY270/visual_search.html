@@ -37,7 +37,13 @@
 </head>
 <body>
 
-<script>
+<!-- type="module" so we can `import` the Firebase SDK below -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
 /* ============================================================
    CONFIG
    ============================================================ */
@@ -52,13 +58,31 @@ const GRID_ROWS = 8;
 const ITEM_SIZE = 30;           // px
 const TRIAL_TIMEOUT = 8000;     // ms
 const FEEDBACK_DURATION = 600;  // ms
-const GROUP_DATA_KEY = 'vs_experiment_group_data';
+const GROUP_DATA_KEY = 'vs_experiment_group_data'; // localStorage fallback key
+const SESSIONS_COLLECTION = 'visual_search_sessions'; // Firestore collection name
 
-// Point this at your deployed backend to store sessions server-side (see
-// server.js / render.yaml). Must be https:// if this page is served over
-// https (e.g. GitHub Pages) -- browsers block https pages from calling
-// http:// endpoints. Leave as '' to fall back to browser localStorage only.
-const BACKEND_URL = 'https://visual-search-backend-vg16.onrender.com'; // e.g. 'https://visual-search-backend.onrender.com'
+// Fill this in with your own project's config (Firebase console -> Project
+// settings -> General -> Your apps -> SDK setup and configuration -> Config).
+// Leave apiKey as the placeholder to fall back to browser localStorage only.
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBNpcMDPhdfJTw3n-r-sWzbDFMGg9Cm1Wk",
+  authDomain: "visual-search-f05ca.firebaseapp.com",
+  projectId: "visual-search-f05ca",
+  storageBucket: "visual-search-f05ca.firebasestorage.app",
+  messagingSenderId: "1063113231608",
+  appId: "1:1063113231608:web:e97d081ae5e1c8dcdbff0d"
+};
+
+let db = null;
+if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+  try {
+    const firebaseApp = initializeApp(firebaseConfig);
+    db = getFirestore(firebaseApp);
+  } catch (err) {
+    console.warn('Firebase failed to initialize, falling back to localStorage:', err);
+  }
+}
 
 let testTrialsCompleted = 0;
 const TOTAL_TEST_TRIALS = TYPES.length * PRESENCE.length * SET_SIZES.length * REPS_PER_CONDITION;
@@ -82,12 +106,10 @@ async function logStoredSessionCount() {
   try {
     let count;
     let source;
-    if (BACKEND_URL) {
-      const res = await fetch(`${BACKEND_URL}/sessions`);
-      if (!res.ok) throw new Error(`GET failed: ${res.status}`);
-      const sessions = await res.json();
-      count = sessions.length;
-      source = 'backend';
+    if (db) {
+      const snapshot = await getDocs(collection(db, SESSIONS_COLLECTION));
+      count = snapshot.size;
+      source = 'firebase';
     } else {
       count = loadGroupData().length;
       source = 'localStorage';
@@ -326,24 +348,21 @@ function saveSessionToGroupData(sessionSummary) {
   return all;
 }
 
-// POST this session to the backend, then GET all sessions back for the group average.
-// Falls back to localStorage if BACKEND_URL is unset or the backend can't be reached.
-// Returns { sessions, source } so callers know which storage was actually used.
+// Write this session to Firestore, then read every stored session back for
+// the group average. Falls back to localStorage if Firebase isn't configured
+// or a read/write fails. Returns { sessions, source }.
 async function saveAndFetchAllSessions(sessionSummary) {
-  if (BACKEND_URL) {
+  if (db) {
     try {
-      const postRes = await fetch(`${BACKEND_URL}/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timestamp: Date.now(), summary: sessionSummary })
+      await addDoc(collection(db, SESSIONS_COLLECTION), {
+        timestamp: Date.now(),
+        summary: sessionSummary
       });
-      if (!postRes.ok) throw new Error(`POST failed: ${postRes.status}`);
-
-      const getRes = await fetch(`${BACKEND_URL}/sessions`);
-      if (!getRes.ok) throw new Error(`GET failed: ${getRes.status}`);
-      return { sessions: await getRes.json(), source: 'backend' };
+      const snapshot = await getDocs(collection(db, SESSIONS_COLLECTION));
+      const sessions = snapshot.docs.map(doc => doc.data());
+      return { sessions, source: 'firebase' };
     } catch (err) {
-      console.warn('Backend unreachable, falling back to localStorage:', err);
+      console.warn('Firebase read/write failed, falling back to localStorage:', err);
     }
   }
   return { sessions: saveSessionToGroupData(sessionSummary), source: 'localStorage' };
@@ -371,7 +390,7 @@ function renderResults(sessionSummary, groupAvg, nSessions, source) {
   document.body.innerHTML = `
     <div id="results-screen">
       <h1>Your Results</h1>
-      <p class="note">Group average is computed from ${nSessions} session(s)${source === 'backend' ? ' recorded on the backend' : ' recorded in this browser (via localStorage)'}, including this one.</p>
+      <p class="note">Group average is computed from ${nSessions} session(s)${source === 'firebase' ? ' recorded in Firebase' : ' recorded in this browser (via localStorage)'}, including this one.</p>
 
       <h2>Feature Search</h2>
       <div class="chart-wrap"><canvas id="chart-feature"></canvas></div>
