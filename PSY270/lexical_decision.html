@@ -4,109 +4,101 @@
 <meta charset="UTF-8">
 <title>Lexical Decision Task</title>
 
-<!-- ================= jsPsych ================= -->
+<!-- jsPsych core + plugins -->
 <script src="https://unpkg.com/jspsych@7.3.4"></script>
 <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
-<script src="https://unpkg.com/@jspsych/plugin-instructions@1.1.3"></script>
-<script src="https://unpkg.com/@jspsych/plugin-preload@1.1.3"></script>
 <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css">
 
-<!-- ================= Firebase (compat SDK, easiest for a single-file app) ================= -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
-<!-- ================= Chart.js for the final bar graph ================= -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<!-- Chart.js for the results plot -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <style>
-  html, body { height: 100%; margin: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background:#fafafa; }
-  #jspsych-target {
-    width: 100%;
-    height: 100vh;
-    overflow-y: auto;
-    box-sizing: border-box;
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f4f4f4;
   }
-  .jspsych-content { max-width: 700px; text-align: center; }
-  #jspsych-progressbar-container { display: none; }
-  .fixation { font-size: 48px; }
-  .stimulus  { font-size: 46px; letter-spacing: 4px; font-weight: 600; }
+  .fixation {
+    font-size: 48px;
+    color: #333;
+  }
+  .stimulus {
+    font-size: 46px;
+    letter-spacing: 4px;
+    font-weight: 600;
+  }
+  .feedback {
+    font-size: 44px;
+    letter-spacing: 0px;
+    font-weight: 600;
+  }
   #results-screen {
-    display:none; max-width: 720px; margin: 40px auto; padding: 24px 32px;
-    background:#fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    max-width: 700px;
+    margin: 30px auto;
+    background: #fff;
+    padding: 24px 32px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
   }
-  #results-screen h1 { font-size: 22px; }
-  #results-screen p  { color:#444; line-height:1.5; }
-  #chart-wrap { max-width: 600px; margin: 24px auto; }
-  #status-line { font-size: 14px; color:#888; }
-  .key { display:inline-block; padding:2px 8px; border:1px solid #ccc; border-radius:4px; background:#f2f2f2; font-family:monospace; }
+  #results-screen h1 { margin-top: 0; }
+  .chart-panel {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .chart-wrap { position: relative; height: 360px; }
+  #jspsych-progressbar-container { display: none; }
 </style>
 </head>
 <body>
 
-<div id="jspsych-target"></div>
-<div id="results-screen">
-  <h1>Task complete — thank you!</h1>
-  <p id="summary-text">Calculating your results...</p>
-  <div id="chart-wrap"><canvas id="rt-chart"></canvas></div>
-  <p id="status-line"></p>
-</div>
+<!-- type="module" so we can `import` the Firebase SDK below -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-<script>
-/* =========================================================================
-   FIREBASE CONFIG
-   -------------------------------------------------------------------------
-   Replace this with your own project's config (Firebase console > Project
-   settings > General > "Your apps" > SDK setup and configuration).
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const CONDITIONS = ['word', 'nonword'];
+const N_PRACTICE_PER_CONDITION = 4;   // 4 words + 4 non-words = 8 practice trials
+const TRIAL_TIMEOUT = 2000;           // ms
+const FEEDBACK_DURATION = 600;        // ms
+const GROUP_DATA_KEY = 'ldt_experiment_group_data'; // localStorage fallback key
+const SESSIONS_COLLECTION = 'ldt_sessions';          // Firestore collection name
 
-   Firestore security rules used for a class/demo deployment (relax as
-   needed, but note: allowing open "list" reads on the collection is what
-   lets every participant's browser compute the group mean client-side):
+// Colourblind-friendly palette (Okabe-Ito)
+const COLOR_CORRECT = '#0072B2';     // blue -- correct feedback
+const COLOR_INCORRECT = '#D55E00';   // vermillion -- incorrect feedback
 
-     rules_version = '2';
-     service cloud.firestore {
-       match /databases/{database}/documents {
-         match /ldt_sessions/{doc} {
-           allow create: if true;   // anyone can submit a session
-           allow read:   if true;   // anyone can read to compute the group mean
-           allow update, delete: if false;
-         }
-       }
-     }
-
-   If FIREBASE_CONFIG.apiKey is left as "REPLACE_ME", the experiment still
-   runs fully — it just falls back to localStorage so you can test it
-   without a Firebase project, and the "group mean" will only reflect
-   sessions run in that same browser.
-   ========================================================================= */
-const FIREBASE_CONFIG = {
-  apiKey: "REPLACE_ME",
-  authDomain: "REPLACE_ME.firebaseapp.com",
-  projectId: "REPLACE_ME",
-  storageBucket: "REPLACE_ME.appspot.com",
-  messagingSenderId: "REPLACE_ME",
-  appId: "REPLACE_ME"
+// Fill this in with your own project's config (Firebase console -> Project
+// settings -> General -> Your apps -> SDK setup and configuration -> Config).
+// Leave apiKey as the placeholder to fall back to browser localStorage only.
+const firebaseConfig = {
+  apiKey: "AIzaSyAosFJOodna6aewWIgeLbSPkVShuSzCbXg",
+  authDomain: "lexical-decision.firebaseapp.com",
+  projectId: "lexical-decision",
+  storageBucket: "lexical-decision.firebasestorage.app",
+  messagingSenderId: "657374040430",
+  appId: "1:657374040430:web:b0f9d47d222a792609317f"
 };
-const FIRESTORE_COLLECTION = "ldt_sessions";
 
 let db = null;
-let firebaseReady = false;
-try {
-  if (FIREBASE_CONFIG.apiKey !== "REPLACE_ME") {
-    firebase.initializeApp(FIREBASE_CONFIG);
-    db = firebase.firestore();
-    firebaseReady = true;
+if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+  try {
+    const firebaseApp = initializeApp(firebaseConfig);
+    db = getFirestore(firebaseApp);
+  } catch (err) {
+    console.warn('Firebase failed to initialize, falling back to localStorage:', err);
   }
-} catch (e) {
-  console.warn("Firebase init failed, falling back to localStorage.", e);
 }
 
+let testTrialsCompleted = 0;
 
-const FEEDBACK_DURATION = 600;  // ms
-const COLOR_CORRECT = '#0072B2';      // blue -- target stimulus, "present" data series
-const COLOR_INCORRECT = '#D55E00';   // vermillion -- incorrect feedback
-/* =========================================================================
+/* ============================================================
    STIMULI — all items are exactly 6 characters long.
-   ========================================================================= */
+   ============================================================ */
 const WORDS = [
   "GARDEN","PENCIL","WINDOW","PURPLE","ANIMAL","FRIEND","MARKET","SILVER",
   "WONDER","CASTLE","FOREST","CANDLE","DRAGON","HAMMER","ISLAND","JACKET",
@@ -132,58 +124,87 @@ function shuffle(arr) {
 const shuffledWords    = shuffle(WORDS);
 const shuffledNonwords = shuffle(NONWORDS);
 
-// First 4 of each -> practice; remainder -> main test block.
-const practiceItems = [
-  ...shuffledWords.slice(0, 4).map(w => ({ stimulus: w, condition: "word" })),
-  ...shuffledNonwords.slice(0, 4).map(w => ({ stimulus: w, condition: "nonword" }))
-];
-const mainItems = [
-  ...shuffledWords.slice(4).map(w => ({ stimulus: w, condition: "word" })),
-  ...shuffledNonwords.slice(4).map(w => ({ stimulus: w, condition: "nonword" }))
-];
+// Practice and test items are drawn from disjoint slices of the same
+// shuffled lists, so no stimulus can appear in both the practice block
+// and the main experiment.
+const practiceWords    = shuffledWords.slice(0, N_PRACTICE_PER_CONDITION);
+const practiceNonwords = shuffledNonwords.slice(0, N_PRACTICE_PER_CONDITION);
+const testWords        = shuffledWords.slice(N_PRACTICE_PER_CONDITION);
+const testNonwords     = shuffledNonwords.slice(N_PRACTICE_PER_CONDITION);
 
-/* =========================================================================
-   jsPsych SETUP
-   ========================================================================= */
+const practiceItems = shuffle([
+  ...practiceWords.map(w => ({ stimulus: w, condition: "word", phase: "practice" })),
+  ...practiceNonwords.map(w => ({ stimulus: w, condition: "nonword", phase: "practice" }))
+]);
+const testItems = shuffle([
+  ...testWords.map(w => ({ stimulus: w, condition: "word", phase: "test" })),
+  ...testNonwords.map(w => ({ stimulus: w, condition: "nonword", phase: "test" }))
+]);
+const TOTAL_TEST_TRIALS = testItems.length;
+
+// Safeguard: warn (rather than silently allow) if a future edit to the
+// stimulus lists or slicing ever causes a practice/test overlap.
+const practiceStimSet = new Set(practiceItems.map(p => p.stimulus));
+const overlap = testItems.filter(t => practiceStimSet.has(t.stimulus));
+if (overlap.length > 0) {
+  console.warn('Practice/test stimulus overlap detected:', overlap.map(o => o.stimulus));
+}
+
 const jsPsych = initJsPsych({
-  display_element: 'jspsych-target',
   show_progress_bar: true,
   auto_update_progress_bar: false,
   message_progress_bar: 'Progress',
-  on_finish: () => { runResultsScreen(); }
+  on_finish: async function () {
+    document.body.innerHTML = '<p style="text-align:center;margin-top:60px;font-size:16px;">Calculating your results...</p>';
+    const sessionSummary = summarize(jsPsych.data.get());
+    const { sessions: allSessions, source } = await saveAndFetchAllSessions(sessionSummary);
+    console.log(`Stored sessions: ${allSessions.length} (including this one, source: ${source})`);
+    const groupAvg = groupAverages(allSessions);
+    renderResults(sessionSummary, groupAvg, allSessions.length, source);
+  }
 });
 
-const subject_id = jsPsych.randomization.randomID(10);
-jsPsych.data.addProperties({ subject_id: subject_id });
+// Log how many sessions are already stored, before this session starts.
+async function logStoredSessionCount() {
+  try {
+    let count;
+    let source;
+    if (db) {
+      const snapshot = await getDocs(collection(db, SESSIONS_COLLECTION));
+      count = snapshot.size;
+      source = 'firebase';
+    } else {
+      count = loadGroupData().length;
+      source = 'localStorage';
+    }
+    console.log(`Previously stored sessions: ${count} (source: ${source})`);
+  } catch (err) {
+    console.warn('Could not fetch stored session count:', err);
+  }
+}
+logStoredSessionCount();
 
-const preload = {
-  type: jsPsychPreload,
-  images: [],
-  auto_preload: true
-};
+/* ============================================================
+   TIMELINE
+   ============================================================ */
+const timeline = [];
 
-const instructions = {
-  type: jsPsychInstructions,
-  pages: [
-    `<div style="text-align:left;">
-       <h2>Lexical Decision Task</h2>
-       <p>On each trial you will see a set of 6 letters in the middle of the screen.</p>
-       <p>Your job is to decide, as quickly and accurately as possible, whether the letters
-       form a <b>real English word</b> or a <b>made-up non-word</b>.</p>
-       <p>Press the <span class="key">&#8594;</span> RIGHT arrow key if it IS a real word.</p>
-       <p>Press the <span class="key">&#8592;</span> LEFT arrow key if it is NOT a real word
-       (a non-word).</p>
-       <p>You'll first do a short practice block of <b>${practiceItems.length} trials</b>
-       with feedback, then the main task of <b>${mainItems.length} trials</b>
-       (no feedback). Respond as fast as you can without sacrificing accuracy.</p>
-       <p>Press the spacebar to begin.</p>
-     </div>`
-  ],
-  key_forward: ' ',
-  allow_backward: false,
-  show_clickable_nav: false,
-  show_page_number: false
-};
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <div style="max-width:600px;margin:0 auto;text-align:left;">
+      <h2>Lexical Decision Task</h2>
+      <p>On each trial, you will see a set of 6 letters in the middle of the screen.</p>
+      <p>Your job is to decide, as quickly and accurately as possible, whether the letters
+      form a <b>real English word</b> or a <b>made-up non-word</b>.</p>
+      <p>Press the <b>right arrow key</b> if it IS a real word.<br>
+      Press the <b>left arrow key</b> if it is NOT a real word (a non-word).</p>
+      <p>You'll start with a short practice block of ${practiceItems.length} trials, then move on
+      to the main experiment (${TOTAL_TEST_TRIALS} trials).</p>
+      <p>Press the spacebar to begin the practice block.</p>
+    </div>`,
+  choices: [' ']
+});
 
 const fixation = {
   type: jsPsychHtmlKeyboardResponse,
@@ -192,60 +213,34 @@ const fixation = {
   trial_duration: 500
 };
 
-let mainTrialsCompleted = 0;
-
-function makeTrial(feedback) {
-  return {
-    type: jsPsychHtmlKeyboardResponse,
-    stimulus: () => `<div class="stimulus">${jsPsych.timelineVariable('stimulus')}</div>`,
-    choices: ['arrowright', 'arrowleft'],
-    trial_duration: 2000,
-    data: () => ({
-      task: 'ldt_response',
-      block: feedback ? 'practice' : 'main',
-      condition: jsPsych.timelineVariable('condition'),
-      stimulus: jsPsych.timelineVariable('stimulus')
-    }),
-    on_finish: (data) => {
-      data.correct_response = data.condition === 'word' ? 'arrowright' : 'arrowleft';
-      data.correct = data.response === data.correct_response;
-      if (!feedback) {
-        mainTrialsCompleted++;
-        jsPsych.setProgressBar(mainTrialsCompleted / mainItems.length);
-      }
+const ldt_trial = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function () {
+    const tv = jsPsych.timelineVariable;
+    let html = `<div style="position:relative;"><div class="stimulus">${tv('stimulus')}</div>`;
+    if (tv('phase') === 'practice') {
+      html += `<p style="position:absolute;top:100%;left:50%;transform:translateX(-50%);white-space:nowrap;margin-top:18px;font-size:16px;">Press <b>&larr;</b> if it is NOT a real word &nbsp;|&nbsp; <b>&rarr;</b> if it IS a real word</p>`;
     }
-  };
-}
+    html += `</div>`;
+    return html;
+  },
+  choices: ['arrowleft', 'arrowright'],
+  trial_duration: TRIAL_TIMEOUT,
+  data: function () {
+    const tv = jsPsych.timelineVariable;
+    return { task: 'ldt_response', condition: tv('condition'), stimulus: tv('stimulus'), phase: tv('phase') };
+  },
+  on_finish: function (data) {
+    const correctKey = data.condition === 'word' ? 'arrowright' : 'arrowleft';
+    data.correct = data.response === correctKey;
+    if (data.phase === 'test') {
+      testTrialsCompleted++;
+      jsPsych.setProgressBar(testTrialsCompleted / TOTAL_TEST_TRIALS);
+    }
+  }
+};
 
-// Shown only when the preceding trial timed out (no response) — requires a
-// key press to continue, rather than auto-advancing.
-// const timeoutPrompt = {
-//   type: jsPsychHtmlKeyboardResponse,
-//   stimulus: '<div class="feedback-incorrect">Too slow! Press any key to continue.</div>',
-//   choices: "ALL_KEYS",
-//   conditional_function: () => {
-//     const last = jsPsych.data.get().last(1).values()[0];
-//     return last.response === null;
-//   }
-// };
-//
-// const practiceFeedback = {
-//   type: jsPsychHtmlKeyboardResponse,
-//   stimulus: () => {
-//     const last = jsPsych.data.get().last(1).values()[0];
-//     return last.correct
-//       ? `<div class="feedback-correct">Correct</div>`
-//       : `<div class="feedback-incorrect">Incorrect</div>`;
-//   },
-//   choices: "NO_KEYS",
-//   trial_duration: 700,
-//   conditional_function: () => {
-//     // Timeout trials already got their own "press any key" prompt above.
-//     const last = jsPsych.data.get().last(1).values()[0];
-//     return last.response !== null;
-//   }
-// };
-function post_trial(feedback) {
+function feedback_trial(showFeedback) {
   return {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: function () {
@@ -253,16 +248,14 @@ function post_trial(feedback) {
       if (last.response === null) {
         return `
           <div style="max-width:500px;margin:0 auto;">
-            <p style="font-size:22px;color:#b8860b;">Too slow! You timed out on this trial</p>
+            <p style="font-size:22px;color:#b8860b;">You timed out on this trial</p>
             <p>Press the spacebar to continue to the next trial.</p>
           </div>`;
       }
-      if (feedback == true) {
-        return last.correct
-          ? `<p style="font-size:46px;color:${COLOR_CORRECT};">Correct</p>`
-          : `<p style="font-size:46px;color:${COLOR_INCORRECT};">Incorrect</p>`;
-      }
-      return '';
+      if (!showFeedback) return '';
+      return last.correct
+        ? `<p class="feedback" style="color:${COLOR_CORRECT};">CORRECT</p>`
+        : `<p class="feedback" style="color:${COLOR_INCORRECT};">INCORRECT</p>`;
     },
     choices: function () {
       const last = jsPsych.data.get().last(1).values()[0];
@@ -275,177 +268,159 @@ function post_trial(feedback) {
   };
 }
 
-const practiceProcedure = {
-  timeline: [fixation, makeTrial(true), post_trial(true)],
-  timeline_variables: practiceItems,
-  randomize_order: true
-};
+// Practice block (with feedback)
+timeline.push({
+  timeline: [fixation, ldt_trial, feedback_trial(true)],
+  timeline_variables: practiceItems
+});
 
-const transitionToMain = {
-  type: jsPsychInstructions,
-  pages: [
-    `<div style="text-align:left;">
-       <p>Practice complete. The main task will now begin: <b>${mainItems.length} trials</b>,
-       with no feedback this time. Respond as quickly and accurately as you can.</p>
-       <p>A progress bar will now appear above the display to show how far through the experiment you are.</p>
-       <p>Press the spacebar to begin.</p>
-     </div>`
-  ],
-  key_forward: ' ',
-  allow_backward: false,
-  show_clickable_nav: false,
-  show_page_number: false,
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <div style="max-width:600px;margin:0 auto;text-align:left;">
+      <h2>Practice complete</h2>
+      <p>Now the main experiment begins (${TOTAL_TEST_TRIALS} trials). There is no feedback
+      this time. Respond as quickly and accurately as you can.</p>
+      <p>A progress bar will now appear above the display to show how far through the experiment you are.</p>
+      <p>Press the spacebar to begin.</p>
+    </div>`,
+  choices: [' '],
   on_load: function () {
     const bar = document.querySelector('#jspsych-progressbar-container');
     if (bar) bar.style.display = 'block';
   }
-};
+});
 
-const mainProcedure = {
-  timeline: [fixation, makeTrial(false), post_trial(false)],
-  timeline_variables: mainItems,
-  randomize_order: true,
-  on_timeline_start: () => {
-    mainTrialsCompleted = 0;
-    jsPsych.setProgressBar(0);
-    document.getElementById('jspsych-progressbar-container').style.display = '';
-  }
-  // on_timeline_finish: () => {
-  //   document.getElementById('jspsych-progressbar-container').style.display = 'none';
-  // }
-};
+// Main test block (no feedback)
+timeline.push({
+  timeline: [fixation, ldt_trial, feedback_trial(false)],
+  timeline_variables: testItems
+});
 
-const timeline = [preload, instructions, practiceProcedure, transitionToMain, mainProcedure];
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<p>You have finished the task. Calculating your results...</p>',
+  choices: "NO_KEYS",
+  trial_duration: 1000
+});
+
 jsPsych.run(timeline);
 
-/* =========================================================================
-   RESULTS: summarize, save to Firebase, fetch group mean, plot bar chart
-   ========================================================================= */
-
-function computeMeanRT(trials) {
-  const rts = trials.filter(t => t.correct && t.response !== null).map(t => t.rt);
-  if (rts.length === 0) return null;
-  return rts.reduce((a, b) => a + b, 0) / rts.length;
+/* ============================================================
+   RESULTS
+   ============================================================ */
+function summarize(dataCollection) {
+  // mean RT for each condition, correct trials only.
+  // Timed-out trials (response === null) are excluded -- they're marked
+  // correct: false in on_finish, so the correct:true filter already omits them.
+  const summary = [];
+  CONDITIONS.forEach(condition => {
+    const trials = dataCollection.filter({ task: 'ldt_response', phase: 'test', condition, correct: true });
+    const n = trials.count();
+    const meanRT = n > 0 ? trials.select('rt').mean() : null;
+    summary.push({ condition, meanRT, n });
+  });
+  return summary;
 }
 
-function summarizeSession() {
-  const mainTrials = jsPsych.data.get().filter({ task: 'ldt_response', block: 'main' }).values();
-  const wordTrials    = mainTrials.filter(t => t.condition === 'word');
-  const nonwordTrials = mainTrials.filter(t => t.condition === 'nonword');
-
-  const nCorrect = mainTrials.filter(t => t.correct).length;
-
-  return {
-    subject_id: subject_id,
-    timestamp: new Date().toISOString(),
-    n_trials: mainTrials.length,
-    accuracy: mainTrials.length ? nCorrect / mainTrials.length : null,
-    mean_rt_word: computeMeanRT(wordTrials),
-    mean_rt_nonword: computeMeanRT(nonwordTrials),
-    mean_rt_overall: computeMeanRT(mainTrials)
-  };
-}
-
-async function saveSession(summary) {
-  const fullData = jsPsych.data.get().values();
-  const record = { ...summary, trials: fullData };
-
-  if (firebaseReady) {
-    await db.collection(FIRESTORE_COLLECTION).add(record);
-    return;
+function loadGroupData() {
+  try {
+    return JSON.parse(localStorage.getItem(GROUP_DATA_KEY) || '[]');
+  } catch (e) {
+    return [];
   }
-  // Fallback: localStorage, so the demo works with no Firebase project set up.
-  const key = "ldt_sessions_local";
-  const existing = JSON.parse(localStorage.getItem(key) || "[]");
-  existing.push(record);
-  localStorage.setItem(key, JSON.stringify(existing));
 }
 
-async function fetchGroupStats(excludeSubjectId) {
-  let sessions = [];
-  if (firebaseReady) {
-    const snap = await db.collection(FIRESTORE_COLLECTION).get();
-    sessions = snap.docs.map(d => d.data());
-  } else {
-    sessions = JSON.parse(localStorage.getItem("ldt_sessions_local") || "[]");
+function saveSessionToGroupData(sessionSummary) {
+  const all = loadGroupData();
+  all.push({ timestamp: Date.now(), summary: sessionSummary });
+  localStorage.setItem(GROUP_DATA_KEY, JSON.stringify(all));
+  return all;
+}
+
+// Write this session to Firestore, then read every stored session back for
+// the group average. Falls back to localStorage if Firebase isn't configured
+// or a read/write fails. Returns { sessions, source }.
+async function saveAndFetchAllSessions(sessionSummary) {
+  if (db) {
+    try {
+      await addDoc(collection(db, SESSIONS_COLLECTION), {
+        timestamp: Date.now(),
+        summary: sessionSummary
+      });
+      const snapshot = await getDocs(collection(db, SESSIONS_COLLECTION));
+      const sessions = snapshot.docs.map(doc => doc.data());
+      return { sessions, source: 'firebase' };
+    } catch (err) {
+      console.warn('Firebase read/write failed, falling back to localStorage:', err);
+    }
   }
-
-  // Include every session (including this one) in the group average.
-  const wordMeans    = sessions.map(s => s.mean_rt_word).filter(v => typeof v === 'number');
-  const nonwordMeans = sessions.map(s => s.mean_rt_nonword).filter(v => typeof v === 'number');
-
-  const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
-
-  return {
-    n_sessions: sessions.length,
-    group_mean_rt_word: avg(wordMeans),
-    group_mean_rt_nonword: avg(nonwordMeans)
-  };
+  return { sessions: saveSessionToGroupData(sessionSummary), source: 'localStorage' };
 }
 
-function renderChart(summary, group) {
-  const ctx = document.getElementById('rt-chart').getContext('2d');
-  new Chart(ctx, {
+function groupAverages(allSessions) {
+  // average meanRT per condition across all stored sessions (including current)
+  const buckets = {};
+  allSessions.forEach(sess => {
+    sess.summary.forEach(row => {
+      if (row.meanRT === null) return;
+      if (!buckets[row.condition]) buckets[row.condition] = [];
+      buckets[row.condition].push(row.meanRT);
+    });
+  });
+  const avg = {};
+  Object.keys(buckets).forEach(key => {
+    avg[key] = buckets[key].reduce((a, b) => a + b, 0) / buckets[key].length;
+  });
+  return avg;
+}
+
+function renderResults(sessionSummary, groupAvg, nSessions, source) {
+  document.body.innerHTML = `
+    <div id="results-screen">
+      <h1>Your Results</h1>
+      <div class="chart-panel">
+        <div class="chart-wrap"><canvas id="chart-ldt"></canvas></div>
+      </div>
+    </div>
+  `;
+  drawChart('chart-ldt', sessionSummary, groupAvg, nSessions);
+}
+
+function drawChart(canvasId, sessionSummary, groupAvg, nSessions) {
+  const getVal = (condition, source) => {
+    if (source === 'session') {
+      const row = sessionSummary.find(r => r.condition === condition);
+      return row && row.meanRT !== null ? Math.round(row.meanRT) : null;
+    } else {
+      return groupAvg[condition] !== undefined ? Math.round(groupAvg[condition]) : null;
+    }
+  };
+
+  new Chart(document.getElementById(canvasId), {
     type: 'bar',
     data: {
       labels: ['Words', 'Non-words'],
       datasets: [
-        {
-          label: 'Your Mean RT',
-          data: [summary.mean_rt_word, summary.mean_rt_nonword],
-          backgroundColor: '#4C72B0'
-        },
-        {
-          label: `Class average (${group.n_sessions} people)`,
-          data: [group.group_mean_rt_word, group.group_mean_rt_nonword],
-          backgroundColor: '#DD8452'
-        }
+        { label: 'Your Mean RT', data: [getVal('word', 'session'), getVal('nonword', 'session')], backgroundColor: COLOR_CORRECT },
+        { label: `Class average (${nSessions} people)`, data: [getVal('word', 'group'), getVal('nonword', 'group')], backgroundColor: 'rgba(0,114,178,0.35)' }
       ]
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
-        title: { display: true, text: 'Mean Reaction Time by Condition' },
-        legend: { position: 'bottom' }
+        legend: { labels: { font: { size: 14 } } }
       },
       scales: {
         y: {
-          beginAtZero: true,
-          title: { display: true, text: 'Reaction time (ms)' }
+          title: { display: true, text: 'Reaction time (ms)', font: { size: 15 } },
+          ticks: { font: { size: 13 } },
+          beginAtZero: true
         }
       }
     }
   });
-}
-
-async function runResultsScreen() {
-  document.getElementById('jspsych-target').style.display = 'none';
-  const panel = document.getElementById('results-screen');
-  panel.style.display = 'block';
-
-  const summary = summarizeSession();
-  document.getElementById('summary-text').innerHTML =
-    `You completed ${summary.n_trials} trials with
-     ${summary.accuracy !== null ? Math.round(summary.accuracy * 100) : '—'}% accuracy.
-     Your mean correct RT was
-     ${summary.mean_rt_overall !== null ? Math.round(summary.mean_rt_overall) + ' ms' : 'unavailable'}.`;
-
-  const statusLine = document.getElementById('status-line');
-  try {
-    statusLine.textContent = 'Saving your data...';
-    await saveSession(summary);
-    statusLine.textContent = 'Loading group results...';
-    const group = await fetchGroupStats(subject_id);
-    renderChart(summary, group);
-    statusLine.textContent = firebaseReady
-      ? 'Data saved to Firebase.'
-      : 'Firebase not configured — using local browser storage for this demo.';
-  } catch (err) {
-    console.error(err);
-    statusLine.textContent = 'Could not save/load data: ' + err.message;
-    // Still show the user's own bars even if the group fetch failed.
-    renderChart(summary, { n_sessions: 0, group_mean_rt_word: null, group_mean_rt_nonword: null });
-  }
 }
 </script>
 </body>
