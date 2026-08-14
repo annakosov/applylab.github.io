@@ -39,6 +39,7 @@
     padding: 16px;
   }
   .chart-wrap { position: relative; height: 360px; }
+  .note { color: #666; font-size: 16px; }
   #jspsych-progressbar-container { display: none; }
 </style>
 </head>
@@ -403,6 +404,9 @@ function renderResults(sessionSummary, groupAvg, nSessions, source) {
   document.body.innerHTML = `
     <div id="results-screen">
       <h1>Your Results</h1>
+      <p class = "note"><b>How to take a screenshot:</b><br>If you're on a Mac, press <b> &#8984; + Shift + 3 </b>at the same time to grab the whole screen.<br>
+      If you're on a Windows PC, press <b><kbd>Win</kbd> + Shift + S</b> at the same time to grab the whole screen.</p>
+      <p class = "note"><b>Relevant textbook section:</b><br>See <b>Section 4.3</b> in the Chun & Most textbook for more information on the visual search task.<br></p>
       <div class="charts-row">
         <div class="chart-panel">
           <h2>Feature Search</h2>
