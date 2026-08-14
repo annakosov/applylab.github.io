@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Psychometric Curve Fitting</title>
+<style>
+  :root{
+    --casing-solid:#202226;
+    --panel:#2A2D34;
+    --panel-2:#252831;
+    --inset:#181A1F;
+    --ink:#F5F4F1;
+    --ink-dim:#ADB3BE;
+    --ink-faint:#6B707C;
+    --border:#3A3E48;
+    --border-lit:#565C6A;
+    --accent-curve:#3FCFC4;
+    --accent-point:#F2A93B;
+    --accent-pct:#C58CF0;
+    --radius:10px;
+    font-size:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #2A2E36 0%, transparent 60%),
+      radial-gradient(1000px 700px at 110% 10%, #262A31 0%, transparent 55%),
+      var(--casing-solid);
+    color:var(--ink);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height:100vh;
+    padding:28px 20px 60px;
+    font-weight:500;
+  }
+  .app-shell{ max-width:1220px; margin:0 auto; }
+  .masthead{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:16px; margin-bottom:22px; padding-bottom:18px;
+    border-bottom:1px solid var(--border); flex-wrap:wrap;
+  }
+  .masthead .id{ display:flex; flex-direction:column; gap:7px; }
+  .eyebrow{
+    font-size:13px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--accent-curve);
+  }
+  h1{ margin:0; font-size:32px; font-weight:800; letter-spacing:-0.01em; }
+  .sub{ color:var(--ink-dim); font-size:16px; max-width:1080px; line-height:1.5; font-weight:500; }
+  .badge{
+    font-size:13px; font-weight:700; color:var(--ink-dim);
+    border:1px solid var(--border); border-radius:999px; padding:7px 14px;
+    display:flex; align-items:center; gap:8px; white-space:nowrap;
+  }
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent-curve);box-shadow:0 0 8px var(--accent-curve);}
+
+  .layout{ display:grid; grid-template-columns:320px 1fr; gap:18px; align-items:start; }
+  @media (max-width:860px){ .layout{grid-template-columns:1fr;} }
+
+  .panel{
+    background:linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border:1px solid var(--border); border-radius:var(--radius); padding:20px;
+  }
+
+  .field-group{margin-bottom:16px;}
+  .field-label{
+    display:block; font-size:13.5px; font-weight:700; letter-spacing:.02em;
+    color:var(--ink-dim); margin-bottom:7px;
+  }
+  input[type="text"], input[type="number"]{
+    width:100%; background:var(--inset); border:1.5px solid var(--border);
+    border-radius:7px; color:var(--ink); padding:10px 11px;
+    font-family:inherit; font-size:16px; font-weight:600;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  input[type="text"]:focus, input[type="number"]:focus{
+    outline:none; border-color:var(--accent-curve);
+    box-shadow:0 0 0 3px rgba(63,207,196,0.18);
+  }
+  input[type="text"]::placeholder{color:var(--ink-faint); font-weight:500;}
+
+  .divider{ height:1px; background:var(--border); margin:18px 0; border:none; }
+
+  .table-wrap{
+    border:1.5px solid var(--border); border-radius:8px; overflow:hidden; background:var(--inset);
+  }
+  table.data-table{ width:100%; border-collapse:collapse; font-size:15px; }
+  table.data-table thead th{
+    text-align:left; font-weight:700; font-size:12.5px; letter-spacing:.02em;
+    color:var(--ink-dim); background:#1E2026; padding:9px 8px;
+    border-bottom:1.5px solid var(--border); position:sticky; top:0;
+  }
+  table.data-table td{ padding:0; border-bottom:1px solid #2A2D36; }
+  table.data-table td input{
+    width:100%; background:transparent; border:none; border-radius:0;
+    padding:8px 8px; color:var(--ink); font-weight:600; font-size:15px;
+  }
+  table.data-table td input:focus{ box-shadow:inset 0 0 0 2px var(--accent-curve); }
+  .table-scroll{ max-height:230px; overflow-y:auto; }
+  .row-idx{ color:var(--ink-faint); padding:0 0 0 10px !important; width:24px; font-size:12.5px; font-weight:600; }
+
+  .paste-hint{
+    font-size:12.5px; color:var(--ink-faint); margin-top:8px; line-height:1.5; font-weight:500;
+  }
+
+  .row-buttons{ display:flex; gap:8px; margin-top:10px; }
+
+  button{
+    font-family:inherit; font-weight:700; font-size:15px; border-radius:8px;
+    border:1.5px solid var(--border-lit); background:#2E323C; color:var(--ink);
+    padding:10px 16px; cursor:pointer;
+    transition:transform .06s ease, border-color .15s ease, background .15s ease;
+  }
+  button:hover{ border-color:var(--accent-curve); background:#333846; }
+  button:active{ transform:translateY(1px); }
+  button.icon-btn{ width:42px; padding:10px 0; text-align:center; flex:0 0 auto; font-size:18px; }
+  button.primary{
+    flex:1; background:linear-gradient(180deg, #59E2D9, #2CB2A8);
+    color:#0C2320; border:1px solid #2CB2A8;
+  }
+  button.primary:hover{ filter:brightness(1.06); }
+  button.secondary{ background:var(--inset); }
+  button.small{ padding:8px 12px; font-size:14px; }
+
+  .checkbox-row{
+    display:flex; align-items:center; gap:10px; margin-top:16px; font-size:15px;
+    color:var(--ink); font-weight:600;
+  }
+  .checkbox-row input[type="checkbox"]{
+    width:18px; height:18px; accent-color:var(--accent-pct); cursor:pointer;
+  }
+  .checkbox-row label{cursor:pointer;}
+
+  .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  .stepper-row{
+    display:flex; align-items:center; gap:10px;
+  }
+  .stepper-row .readout-pct{
+    font-weight:700; font-size:15px; min-width:52px; text-align:center;
+  }
+
+  /* ---- plot panel ---- */
+  .plot-panel{padding:20px 20px 16px;}
+  .plot-toolbar{
+    display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-bottom:12px;
+    flex-wrap:wrap;
+  }
+  .plot-frame{ background:#FFFFFF; border-radius:8px; border:1px solid var(--border); padding:6px; }
+  svg{display:block; width:100%; height:auto;}
+
+  .readouts{ display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-top:16px; }
+  @media (max-width:640px){ .readouts{grid-template-columns:repeat(2,1fr);} }
+  .readout{
+    background:var(--inset); border:1.5px solid var(--border); border-radius:8px;
+    padding:11px 13px; position:relative; overflow:hidden;
+  }
+  .readout::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:4px; }
+  .readout.mid::before{background:#8B8E97;}
+  .readout.p25::before{background:var(--accent-pct);}
+  .readout.p75::before{background:var(--accent-pct);}
+  .readout .rlabel{ font-size:12px; font-weight:700; letter-spacing:.02em; color:var(--ink-dim); }
+  .readout .rvalue{
+    font-size:24px; font-weight:800; color:var(--ink); margin-top:5px; min-height:28px;
+  }
+
+  footer.note{ margin-top:20px; font-size:13px; color:var(--ink-faint); line-height:1.6; font-weight:500; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="masthead">
+    <div class="id">
+      <span class="eyebrow">Psychophysics &middot; Logistic Fit</span>
+      <h1>Psychometric Curve Fitting</h1>
+      <div class="sub">Enter stimulus levels and response proportions, then fit a two&#8209;parameter logistic curve by maximum likelihood.</div>
+    </div>
+    <div class="badge"><span class="dot"></span>MLE &middot; Nelder&#8209;Mead solver</div>
+  </div>
+
+  <div class="layout">
+
+    <!-- LEFT: CONTROL PANEL -->
+    <div class="panel">
+
+      <div class="field-group">
+        <label class="field-label" for="xLabelInput">X Label</label>
+        <input type="text" id="xLabelInput" placeholder="">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="yLabelInput">Y Label</label>
+        <input type="text" id="yLabelInput" placeholder="">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="titleInput">Title</label>
+        <input type="text" id="titleInput" placeholder="">
+      </div>
+
+      <hr class="divider">
+
+      <label class="field-label">Data</label>
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="row-idx">#</th>
+                <th>Stimulus level</th>
+                <th>Resp. proportion</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="row-buttons">
+        <button class="icon-btn" id="addRowBtn" title="Add row">+</button>
+        <button class="icon-btn" id="removeRowBtn" title="Remove last row">&minus;</button>
+      </div>
+      <div class="paste-hint">Tip: copy a two-column table from a spreadsheet and paste directly into any cell. New rows will be added automatically.</div>
+
+      <hr class="divider">
+
+      <div class="two-col">
+        <div class="field-group">
+          <label class="field-label" for="lowerXInput">Lower X Limit</label>
+          <input type="text" id="lowerXInput" placeholder="auto">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="upperXInput">Upper X Limit</label>
+          <input type="text" id="upperXInput" placeholder="auto">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="floorPerfInput">Floor Perf.</label>
+        <input type="text" id="floorPerfInput" value="0">
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="showPctCheckbox">
+        <label for="showPctCheckbox">Show 75% &amp; 25% points</label>
+      </div>
+
+      <hr class="divider">
+
+      <button class="primary" id="updatePlotBtn" style="width:100%;">Update Plot</button>
+    </div>
+
+    <!-- RIGHT: PLOT PANEL -->
+    <div class="panel plot-panel">
+      <div class="plot-toolbar">
+        <span class="field-label" style="margin:0;">Graph text size</span>
+        <div class="stepper-row">
+          <button class="icon-btn small" id="textSizeDownBtn" title="Smaller text">A&minus;</button>
+          <span class="readout-pct" id="textSizeReadout">100%</span>
+          <button class="icon-btn small" id="textSizeUpBtn" title="Larger text">A+</button>
+        </div>
+        <button class="secondary small" id="savePngBtn">Save as PNG</button>
+      </div>
+      <div class="plot-frame">
+        <div id="plotHost"></div>
+      </div>
+
+      <div class="readouts">
+        <div class="readout mid">
+          <div class="rlabel">Midpoint</div>
+          <div class="rvalue" id="pseReadout">&mdash;</div>
+        </div>
+        <div class="readout p25">
+          <div class="rlabel">P25</div>
+          <div class="rvalue" id="p25Readout">&mdash;</div>
+        </div>
+        <div class="readout p75">
+          <div class="rlabel">P75</div>
+          <div class="rvalue" id="p75Readout">&mdash;</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="note">
+    Fit model &nbsp;y = shift + (1&minus;shift) / (1 + exp(&minus;a&middot;(x&minus;b)))&nbsp; &middot; parameters a, b estimated by minimizing negative log&#8209;likelihood via Nelder&#8209;Mead simplex search, seeded from a linear least&#8209;squares start point.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------------------------------------------------------------
+  // Fixed plot colors (kept literal, not CSS vars, so the SVG can be
+  // exported to PNG standalone without losing its styling)
+  // ---------------------------------------------------------------
+  const PLOT_COLORS = {
+    paper:      '#FFFFFF',
+    paperLine:  '#E4E4E4',
+    axisBox:    '#B9B9B9',
+    tickText:   '#4A4A4A',
+    titleText:  '#161616',
+    labelText:  '#2E2E2E',
+    curve:      '#1EA89D',
+    point:      '#E8992C',
+    pointEdge:  '#8A5C10',
+    mid:        '#1A1A1A',
+    pct:        '#8B3FD1',
+    emptyText:  '#9A9A9A'
+  };
+
+  // ---------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------
+  let dataRows = [{x:0, y:0}];
+  let lastFit = null;
+  let graphTextScale = 1.0;
+
+  const el = (id) => document.getElementById(id);
+  const tableBody = el('tableBody');
+  const xLabelInput = el('xLabelInput');
+  const yLabelInput = el('yLabelInput');
+  const titleInput = el('titleInput');
+  const lowerXInput = el('lowerXInput');
+  const upperXInput = el('upperXInput');
+  const floorPerfInput = el('floorPerfInput');
+  const showPctCheckbox = el('showPctCheckbox');
+  const plotHost = el('plotHost');
+  const pseReadout = el('pseReadout');
+  const p25Readout = el('p25Readout');
+  const p75Readout = el('p75Readout');
+  const textSizeReadout = el('textSizeReadout');
+
+  // ---------------------------------------------------------------
+  // Table rendering + copy/paste support
+  // ---------------------------------------------------------------
+  function renderTable(){
+    tableBody.innerHTML = '';
+    dataRows.forEach((row, i) => {
+      const tr = document.createElement('tr');
+
+      const idxTd = document.createElement('td');
+      idxTd.className = 'row-idx';
+      idxTd.textContent = i+1;
+      tr.appendChild(idxTd);
+
+      const xTd = document.createElement('td');
+      const xInput = document.createElement('input');
+      xInput.type = 'number';
+      xInput.step = 'any';
+      xInput.value = Number.isFinite(row.x) ? row.x : '';
+      xInput.addEventListener('input', () => {
+        dataRows[i].x = parseFloat(xInput.value);
+        syncXLimitsToData();
+      });
+      xInput.addEventListener('paste', (e) => handleTablePaste(e, i, 0));
+      xTd.appendChild(xInput);
+      tr.appendChild(xTd);
+
+      const yTd = document.createElement('td');
+      const yInput = document.createElement('input');
+      yInput.type = 'number';
+      yInput.step = 'any';
+      yInput.value = Number.isFinite(row.y) ? row.y : '';
+      yInput.addEventListener('input', () => {
+        dataRows[i].y = parseFloat(yInput.value);
+        syncXLimitsToData();
+      });
+      yInput.addEventListener('paste', (e) => handleTablePaste(e, i, 1));
+      yTd.appendChild(yInput);
+      tr.appendChild(yTd);
+
+      tableBody.appendChild(tr);
+    });
+  }
+
+  function handleTablePaste(e, rowIndex, colIndex){
+    const clipboard = e.clipboardData || window.clipboardData;
+    if (!clipboard) return;
+    const text = clipboard.getData('text');
+    if (!text) return;
+    // Only intercept multi-cell pastes (tabs / newlines). A plain single
+    // number paste is left to the browser's normal input behavior.
+    if (!/[\t\n]/.test(text)) return;
+    e.preventDefault();
+
+    const lines = text.replace(/\r/g, '').split('\n').filter(l => l.length > 0);
+    let ptr = rowIndex;
+    lines.forEach((line, i) => {
+      const cells = line.split('\t').map(s => s.trim());
+      const nums = cells.map(v => parseFloat(v));
+      const allNaN = nums.every(n => !Number.isFinite(n));
+      if (allNaN && i === 0) return; // likely a header row, skip without consuming a slot
+      while (dataRows.length <= ptr) dataRows.push({x:NaN, y:NaN});
+      cells.forEach((val, j) => {
+        const colTarget = colIndex + j;
+        if (colTarget > 1) return;
+        const num = parseFloat(val);
+        if (Number.isFinite(num)){
+          if (colTarget === 0) dataRows[ptr].x = num; else dataRows[ptr].y = num;
+        }
+      });
+      ptr++;
+    });
+
+    renderTable();
+    syncXLimitsToData();
+  }
+
+  function syncXLimitsToData(){
+    const xs = dataRows.map(r => r.x).filter(v => Number.isFinite(v));
+    if (xs.length === 0) return;
+    lowerXInput.value = numToStr(Math.min(...xs));
+    upperXInput.value = numToStr(Math.max(...xs));
+  }
+
+  el('addRowBtn').addEventListener('click', () => {
+    dataRows.push({x:0, y:0});
+    renderTable();
+  });
+  el('removeRowBtn').addEventListener('click', () => {
+    if (dataRows.length > 0) dataRows.pop();
+    if (dataRows.length === 0) dataRows.push({x:0, y:0});
+    renderTable();
+  });
+
+  // ---------------------------------------------------------------
+  // Numeric helpers
+  // ---------------------------------------------------------------
+  function numToStr(v){
+    if (!Number.isFinite(v)) return '';
+    const r = Math.round(v*1e6)/1e6;
+    return String(r);
+  }
+
+  function linearFit(xs, ys){
+    const n = xs.length;
+    const mx = xs.reduce((a,b)=>a+b,0)/n;
+    const my = ys.reduce((a,b)=>a+b,0)/n;
+    let num=0, den=0;
+    for (let i=0;i<n;i++){ num += (xs[i]-mx)*(ys[i]-my); den += (xs[i]-mx)*(xs[i]-mx); }
+    const slope = den !== 0 ? num/den : 0;
+    const intercept = my - slope*mx;
+    return {slope, intercept};
+  }
+
+  function nelderMead(f, x0, opts){
+    opts = opts || {};
+    const maxIter = opts.maxIter || 4000;
+    const tol = opts.tol || 1e-10;
+    const n = x0.length;
+    const alpha=1, gamma=2, rho=0.5, sigma=0.5;
+
+    let simplex = [x0.slice()];
+    for (let i=0;i<n;i++){
+      const xi = x0.slice();
+      xi[i] = xi[i] !== 0 ? xi[i]*1.05 : 0.00025;
+      simplex.push(xi);
+    }
+    let values = simplex.map(f);
+
+    for (let iter=0; iter<maxIter; iter++){
+      const idx = values.map((v,i)=>i).sort((a,b)=>values[a]-values[b]);
+      simplex = idx.map(i=>simplex[i]);
+      values = idx.map(i=>values[i]);
+
+      if (Math.abs(values[n]-values[0]) < tol) break;
+
+      const centroid = new Array(n).fill(0);
+      for (let i=0;i<n;i++){
+        for (let j=0;j<n;j++) centroid[j] += simplex[i][j];
+      }
+      for (let j=0;j<n;j++) centroid[j] /= n;
+
+      const worst = simplex[n], worstVal = values[n];
+      const xr = centroid.map((c,j)=>c+alpha*(c-worst[j]));
+      const fr = f(xr);
+
+      if (fr < values[0]){
+        const xe = centroid.map((c,j)=>c+gamma*(xr[j]-c));
+        const fe = f(xe);
+        if (fe < fr){ simplex[n]=xe; values[n]=fe; }
+        else { simplex[n]=xr; values[n]=fr; }
+      } else if (fr < values[n-1]){
+        simplex[n]=xr; values[n]=fr;
+      } else {
+        const xc = centroid.map((c,j)=>c+rho*(worst[j]-c));
+        const fc = f(xc);
+        if (fc < worstVal){ simplex[n]=xc; values[n]=fc; }
+        else {
+          for (let i=1;i<=n;i++){
+            simplex[i] = simplex[0].map((b0,j)=>b0+sigma*(simplex[i][j]-b0));
+            values[i] = f(simplex[i]);
+          }
+        }
+      }
+    }
+
+    const idx = values.map((v,i)=>i).sort((a,b)=>values[a]-values[b]);
+    return simplex[idx[0]];
+  }
+
+  function invLogistic(pt, shift, scale, a, b){
+    const arg = (scale/(pt-shift)) - 1;
+    return (Math.log(arg)/-a) + b;
+  }
+
+  // ---------------------------------------------------------------
+  // Fitting
+  // ---------------------------------------------------------------
+  function fitCurve(){
+    const pts = dataRows.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y));
+    if (pts.length < 2){
+      lastFit = null;
+      return {error: 'Add at least two data points, then click Update Plot.'};
+    }
+    const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+    const uniqueX = new Set(xs);
+    if (uniqueX.size < 2){
+      lastFit = null;
+      return {error: 'Stimulus levels need at least two distinct values.'};
+    }
+
+    let shift = parseFloat(floorPerfInput.value);
+    if (!Number.isFinite(shift)) shift = 0;
+    shift = Math.min(Math.max(shift, 0), 0.98);
+    const scale = 1 - shift;
+    const threshPt = shift + scale/2;
+
+    const {slope, intercept} = linearFit(xs, ys);
+    const b0 = slope !== 0 ? (threshPt - intercept)/slope : (xs.reduce((a,c)=>a+c,0)/xs.length);
+    const startPoint = [0.01, b0];
+
+    function negLogLik(params){
+      const a = params[0], b = params[1];
+      let ll = 0;
+      for (let i=0;i<xs.length;i++){
+        let fitted = scale/(1+Math.exp(-a*(xs[i]-b))) + shift;
+        fitted = Math.min(Math.max(fitted, 1e-9), 1-1e-9);
+        const yv = Math.min(Math.max(ys[i], 0), 1);
+        ll += yv*Math.log(fitted) + (1-yv)*Math.log(1-fitted);
+      }
+      return -ll;
+    }
+
+    const estimates = nelderMead(negLogLik, startPoint);
+    const a = estimates[0], b = estimates[1];
+
+    let xMin = parseFloat(lowerXInput.value);
+    let xMax = parseFloat(upperXInput.value);
+    if (!Number.isFinite(xMin)) xMin = Math.min(...xs);
+    if (!Number.isFinite(xMax)) xMax = Math.max(...xs);
+    if (xMin === xMax){ xMin -= 1; xMax += 1; }
+
+    const thresh = invLogistic(threshPt, shift, scale, a, b);
+    const p75Point = 0.75*scale + shift;
+    const p25Point = 0.25*scale + shift;
+    const p75 = invLogistic(p75Point, shift, scale, a, b);
+    const p25 = invLogistic(p25Point, shift, scale, a, b);
+
+    lastFit = {a, b, shift, scale, threshPt, xMin, xMax, thresh, p75, p25, p75Point, p25Point, pts};
+    return {error: null};
+  }
+
+  // ---------------------------------------------------------------
+  // SVG plot rendering
+  // ---------------------------------------------------------------
+  const SVG_W = 700, SVG_H = 440;
+
+  function niceStep(range, targetTicks){
+    const rough = range/targetTicks;
+    const mag = Math.pow(10, Math.floor(Math.log10(rough || 1)));
+    const norm = rough/mag;
+    let step;
+    if (norm < 1.5) step = 1;
+    else if (norm < 3) step = 2;
+    else if (norm < 7) step = 5;
+    else step = 10;
+    return step*mag;
+  }
+
+  function renderPlot(){
+    const title = titleInput.value || 'Title';
+    const xLabel = xLabelInput.value || 'X';
+    const yLabel = yLabelInput.value || 'Y';
+    const showPct = showPctCheckbox.checked;
+    const S = graphTextScale;
+
+    // Margins grow with text size so larger labels/ticks have room to breathe
+    const M = {
+      top:    Math.round(46 + (S-1)*46),
+      right:  Math.round(26 + (S-1)*14),
+      bottom: Math.round(64 + (S-1)*54),
+      left:   Math.round(66 + (S-1)*54)
+    };
+
+    const plotW = SVG_W - M.left - M.right;
+    const plotH = SVG_H - M.top - M.bottom;
+
+    let xMin = 0, xMax = 1;
+    let havePts = false, pts = [];
+    if (lastFit){
+      xMin = lastFit.xMin; xMax = lastFit.xMax;
+      pts = lastFit.pts; havePts = true;
+    } else {
+      const xs = dataRows.map(r=>r.x).filter(Number.isFinite);
+      if (xs.length){
+        xMin = Math.min(...xs); xMax = Math.max(...xs);
+        if (xMin === xMax){ xMin -= 1; xMax += 1; }
+      }
+      pts = dataRows.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y));
+      havePts = pts.length > 0;
+    }
+
+    const yMin = 0, yMax = 1;
+    const xScale = (x) => M.left + ( (x - xMin) / (xMax - xMin) ) * plotW;
+    const yScale = (y) => M.top + plotH - ( (y - yMin) / (yMax - yMin) ) * plotH;
+
+    // Fewer, more widely-spaced ticks as text gets larger, so labels never crowd
+    const targetXTicks = Math.max(3, Math.round(6/S));
+    const xStep = niceStep(xMax - xMin, targetXTicks);
+    const xTicks = [];
+    let xt = Math.ceil(xMin/xStep)*xStep;
+    for (; xt <= xMax + 1e-9; xt += xStep) xTicks.push(Math.round(xt*1e6)/1e6);
+
+    const yStepOptions = [0.1, 0.2, 0.25, 0.5];
+    const targetYTicks = Math.max(2, Math.round(10/S));
+    let yStep = 0.1;
+    for (const opt of yStepOptions){ yStep = opt; if (1/opt <= targetYTicks) break; }
+    const yTicks = [];
+    for (let v=0; v<=1+1e-9; v+=yStep) yTicks.push(Math.round(v*1e6)/1e6);
+
+    const fTitle = Math.round(19*S), fAxisLabel = Math.round(16*S), fTick = Math.round(13*S), fAnnot = Math.round(14*S);
+    const FONT = '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+
+    let svg = '';
+    svg += `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" font-family="${FONT}">`;
+    svg += `<rect x="0" y="0" width="${SVG_W}" height="${SVG_H}" fill="${PLOT_COLORS.paper}"/>`;
+
+    const yDecimals = yStep === 0.25 ? 2 : 1;
+    yTicks.forEach(yt => {
+      const yy = yScale(yt);
+      svg += `<line x1="${M.left}" y1="${yy}" x2="${SVG_W-M.right}" y2="${yy}" stroke="${PLOT_COLORS.paperLine}" stroke-width="1"/>`;
+      svg += `<text x="${M.left-10}" y="${yy+fTick*0.35}" font-size="${fTick}" font-weight="600" fill="${PLOT_COLORS.tickText}" text-anchor="end">${yt.toFixed(yDecimals)}</text>`;
+    });
+    xTicks.forEach(xtk => {
+      const xx = xScale(xtk);
+      svg += `<line x1="${xx}" y1="${M.top}" x2="${xx}" y2="${SVG_H-M.bottom}" stroke="${PLOT_COLORS.paperLine}" stroke-width="1"/>`;
+      svg += `<text x="${xx}" y="${SVG_H-M.bottom+fTick+6}" font-size="${fTick}" font-weight="600" fill="${PLOT_COLORS.tickText}" text-anchor="middle">${xtk}</text>`;
+    });
+
+    svg += `<rect x="${M.left}" y="${M.top}" width="${plotW}" height="${plotH}" fill="none" stroke="${PLOT_COLORS.axisBox}" stroke-width="1.25"/>`;
+
+    svg += `<text x="${SVG_W/2}" y="${Math.round(fTitle*0.9)+10}" font-size="${fTitle}" font-weight="800" fill="${PLOT_COLORS.titleText}" text-anchor="middle">${escXml(title)}</text>`;
+    svg += `<text x="${SVG_W/2}" y="${SVG_H-14}" font-size="${fAxisLabel}" font-weight="700" fill="${PLOT_COLORS.labelText}" text-anchor="middle">${escXml(xLabel)}</text>`;
+    const yLabelX = Math.round(16 + (S-1)*8);
+    svg += `<text x="${yLabelX}" y="${SVG_H/2}" font-size="${fAxisLabel}" font-weight="700" fill="${PLOT_COLORS.labelText}" text-anchor="middle" transform="rotate(-90 ${yLabelX} ${SVG_H/2})">${escXml(yLabel)}</text>`;
+
+    if (!havePts){
+      svg += `<text x="${SVG_W/2}" y="${SVG_H/2}" font-size="${fAnnot+1}" font-weight="600" fill="${PLOT_COLORS.emptyText}" text-anchor="middle">Add data points, then click Update Plot</text>`;
+      svg += `</svg>`;
+      plotHost.innerHTML = svg;
+      return;
+    }
+
+    if (lastFit){
+      const {a,b,shift,scale,threshPt,thresh,p75,p25,p75Point,p25Point} = lastFit;
+
+      const N = 200;
+      let d = '';
+      for (let i=0;i<=N;i++){
+        const x = xMin + (xMax-xMin)*i/N;
+        const y = scale/(1+Math.exp(-a*(x-b))) + shift;
+        const px = xScale(x), py = yScale(Math.min(Math.max(y,0),1));
+        d += (i===0 ? 'M' : 'L') + px.toFixed(2) + ' ' + py.toFixed(2) + ' ';
+      }
+      svg += `<path d="${d}" fill="none" stroke="${PLOT_COLORS.curve}" stroke-width="2.5"/>`;
+
+      // Midpoint (PSE) guide lines
+      if (Number.isFinite(thresh)){
+        const tx = xScale(clampX(thresh, xMin, xMax));
+        const ty = yScale(threshPt);
+        svg += guideLines(M.left, M.top+plotH, tx, ty, PLOT_COLORS.mid);
+        svg += `<text x="${tx+6}" y="${ty-6}" font-size="${fAnnot}" font-weight="700" fill="${PLOT_COLORS.mid}">${roundStr(thresh,3)}</text>`;
+      }
+
+      // 75/25 guide lines
+      if (showPct && Number.isFinite(p75) && Number.isFinite(p25)){
+        const tx75 = xScale(clampX(p75, xMin, xMax));
+        const ty75 = yScale(p75Point);
+        svg += guideLines(M.left, M.top+plotH, tx75, ty75, PLOT_COLORS.pct);
+        svg += `<text x="${tx75+6}" y="${ty75-6}" font-size="${fAnnot}" font-weight="700" fill="${PLOT_COLORS.pct}">P75: ${roundStr(p75,3)}</text>`;
+
+        const tx25 = xScale(clampX(p25, xMin, xMax));
+        const ty25 = yScale(p25Point);
+        svg += guideLines(M.left, M.top+plotH, tx25, ty25, PLOT_COLORS.pct);
+        svg += `<text x="${tx25+6}" y="${ty25-6}" font-size="${fAnnot}" font-weight="700" fill="${PLOT_COLORS.pct}">P25: ${roundStr(p25,3)}</text>`;
+      }
+    }
+
+    pts.forEach(p => {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+      const px = xScale(p.x), py = yScale(Math.min(Math.max(p.y,0),1));
+      svg += `<circle cx="${px}" cy="${py}" r="5" fill="${PLOT_COLORS.point}" stroke="${PLOT_COLORS.pointEdge}" stroke-width="1.25"/>`;
+    });
+
+    svg += `</svg>`;
+    plotHost.innerHTML = svg;
+  }
+
+  function clampX(x, xMin, xMax){ return Math.min(Math.max(x, xMin), xMax); }
+
+  function guideLines(leftX, bottomY, px, py, color){
+    return `<line x1="${leftX}" y1="${py}" x2="${px}" y2="${py}" stroke="${color}" stroke-width="1.5" stroke-dasharray="4,3"/>`
+         + `<line x1="${px}" y1="${py}" x2="${px}" y2="${bottomY}" stroke="${color}" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+  }
+
+  function roundStr(v, n){
+    if (!Number.isFinite(v)) return '\u2014';
+    return (Math.round(v*Math.pow(10,n))/Math.pow(10,n)).toString();
+  }
+
+  function escXml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ---------------------------------------------------------------
+  // Update pipeline
+  // ---------------------------------------------------------------
+  function updatePlot(){
+    const result = fitCurve();
+    renderPlot();
+    if (result.error){
+      pseReadout.textContent = '\u2014';
+      p25Readout.textContent = '\u2014';
+      p75Readout.textContent = '\u2014';
+      return;
+    }
+    pseReadout.textContent = roundStr(lastFit.thresh, 3);
+    if (showPctCheckbox.checked){
+      p25Readout.textContent = roundStr(lastFit.p25, 3);
+      p75Readout.textContent = roundStr(lastFit.p75, 3);
+    } else {
+      p25Readout.textContent = '\u2014';
+      p75Readout.textContent = '\u2014';
+    }
+  }
+
+  el('updatePlotBtn').addEventListener('click', updatePlot);
+  showPctCheckbox.addEventListener('change', () => {
+    if (lastFit){
+      renderPlot();
+      if (showPctCheckbox.checked){
+        p25Readout.textContent = roundStr(lastFit.p25, 3);
+        p75Readout.textContent = roundStr(lastFit.p75, 3);
+      } else {
+        p25Readout.textContent = '\u2014';
+        p75Readout.textContent = '\u2014';
+      }
+    }
+  });
+  [xLabelInput, yLabelInput, titleInput].forEach(inp => {
+    inp.addEventListener('input', renderPlot);
+  });
+
+  // ---------------------------------------------------------------
+  // Graph text size control
+  // ---------------------------------------------------------------
+  function setTextScale(v){
+    graphTextScale = Math.min(2.0, Math.max(0.7, v));
+    textSizeReadout.textContent = Math.round(graphTextScale*100) + '%';
+    renderPlot();
+  }
+  el('textSizeUpBtn').addEventListener('click', () => setTextScale(graphTextScale + 0.1));
+  el('textSizeDownBtn').addEventListener('click', () => setTextScale(graphTextScale - 0.1));
+
+  // ---------------------------------------------------------------
+  // PNG export
+  // ---------------------------------------------------------------
+  el('savePngBtn').addEventListener('click', () => {
+    const svgEl = plotHost.querySelector('svg');
+    if (!svgEl) return;
+    const svgString = new XMLSerializer().serializeToString(svgEl);
+    const svgBlob = new Blob([svgString], {type:'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = function(){
+      const scaleFactor = 3;
+      const canvas = document.createElement('canvas');
+      canvas.width = SVG_W*scaleFactor;
+      canvas.height = SVG_H*scaleFactor;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = PLOT_COLORS.paper;
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.scale(scaleFactor, scaleFactor);
+      ctx.drawImage(img,0,0,SVG_W,SVG_H);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(function(blob){
+        const link = document.createElement('a');
+        link.download = 'psychometric-curve.png';
+        link.href = URL.createObjectURL(blob);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }, 'image/png');
+    };
+    img.onerror = function(){
+      alert('Could not export the graph as a PNG. Please try again.');
+    };
+    img.src = url;
+  });
+
+  // ---------------------------------------------------------------
+  // Init
+  // ---------------------------------------------------------------
+  renderTable();
+  renderPlot();
+})();
+</script>
+</body>
+</html>

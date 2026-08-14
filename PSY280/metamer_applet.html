@@ -60,7 +60,7 @@ h1{
   color:var(--muted);
   font-size:15px;
   line-height:1.6;
-  max-width:560px;
+  max-width:1080px;
 }
 
 .wrap{
@@ -284,9 +284,12 @@ canvas:focus-visible{
 <body>
 
 <header>
-  <div class="eyebrow">Color Vision · Metamerism</div>
+  <div class="eyebrow">Colour Vision · Metamerism</div>
   <h1>Metamer Spectrum Drawer</h1>
-  <p class="subtitle">Paint a photon spectrum by wavelength and see the color it predicts on the retina — two very different spectra can excite the L, M, and S cones identically and look the same.</p>
+  <p class="subtitle">Paint a photon spectrum by wavelength and see how the Long (L), Medium (M), and Short (S) wavelength cones would respond.
+    The cone responses signal the colour shown under "predicted colour".
+    Many different spectra can excite the L, M, and S cones identically and look the same. These are called <b>metamers</b>.
+    Use the plot underneath to draw a different spectrum that produces the same colour appearance.</p>
 </header>
 
 <div class="wrap">
@@ -520,7 +523,7 @@ ctx.stroke();
 
 ctx.save();
 
-ctx.font="13px sans-serif";
+ctx.font="14px sans-serif";
 ctx.fillStyle="#9a9fae";
 ctx.textAlign="center";
 
@@ -531,7 +534,7 @@ ctx.fillText(w,x,plotBottom+22);
 
 }
 
-ctx.fillStyle="#6a6f80";
+ctx.fillStyle="#9a9fae";
 ctx.fillText("WAVELENGTH (nm)",leftMargin+N/2,canvas.height-8);
 
 ctx.restore();
@@ -541,7 +544,7 @@ ctx.save();
 ctx.translate(28,plotTop+plotHeight/2);
 ctx.rotate(-Math.PI/2);
 ctx.textAlign="center";
-ctx.font="12px sans-serif";
+ctx.font="14px sans-serif";
 ctx.fillStyle="#9a9fae";
 ctx.fillText("# PHOTONS",0,0);
 
