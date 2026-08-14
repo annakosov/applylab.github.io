@@ -57,8 +57,8 @@ import {
 const SET_SIZES = [4, 8, 16, 32];
 const TYPES = ['feature', 'conjunction'];
 const PRESENCE = ['present', 'absent'];
-const REPS_PER_CONDITION = 1;  // trials per condition (16 conditions * 10 = 160 test trials)
-const N_PRACTICE_TRIALS = 4;
+const REPS_PER_CONDITION = 10;  //10 trials per condition (16 conditions * 10 = 160 test trials)
+const N_PRACTICE_TRIALS = 10;//10
 const DISPLAY_SIZE = 520;       // px, square search area
 const GRID_COLS = 8;
 const GRID_ROWS = 8;
@@ -76,7 +76,7 @@ const COLOR_INCORRECT = '#D55E00';   // vermillion -- incorrect feedback
 // Fill this in with your own project's config (Firebase console -> Project
 // settings -> General -> Your apps -> SDK setup and configuration -> Config).
 // Leave apiKey as the placeholder to fall back to browser localStorage only.
-const firebaseConfig = {  
+const firebaseConfig = {
     apiKey: "AIzaSyBNpcMDPhdfJTw3n-r-sWzbDFMGg9Cm1Wk",
     authDomain: "visual-search-f05ca.firebaseapp.com",
     projectId: "visual-search-f05ca",
