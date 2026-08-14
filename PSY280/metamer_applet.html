@@ -286,7 +286,7 @@ canvas:focus-visible{
 <header>
   <div class="eyebrow">Colour Vision · Metamerism</div>
   <h1>Metamer Spectrum Drawer</h1>
-  <p class="subtitle">Paint a photon spectrum by wavelength and see how the Long (L), Medium (M), and Short (S) wavelength cones would respond.
+  <p class="subtitle">Paint a photon spectrum by wavelength and see how the long (L), medium (M), and short (S) wavelength cones would respond.
     The cone responses signal the colour shown under "predicted colour".
     Many different spectra can excite the L, M, and S cones identically and look the same. These are called <b>metamers</b>.
     Use the plot underneath to draw a different spectrum that produces the same colour appearance.</p>
@@ -753,7 +753,7 @@ let dM=Math.abs(c1.M-c2.M);
 let dS=Math.abs(c1.S-c2.S);
 
 let hasSignal = (c1.L+c1.M+c1.S)>0.01 && (c2.L+c2.M+c2.S)>0.01;
-let isMatch = hasSignal && dL<0.1 && dM<0.1 && dS<0.1;
+let isMatch = hasSignal && dL<0.05 && dM<0.05 && dS<0.05;
 
 if(isMatch && !matched){
 showMatchToast();
