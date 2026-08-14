@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lexical Decision Task</title>
+
+<!-- jsPsych core + plugins -->
+<script src="https://unpkg.com/jspsych@7.3.4"></script>
+<script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+<link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css">
+
+<!-- Chart.js for the results plot -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f4f4f4;
+  }
+  .fixation {
+    font-size: 48px;
+    color: #333;
+  }
+  .stimulus {
+    font-size: 46px;
+    letter-spacing: 4px;
+    font-weight: 600;
+  }
+  .feedback {
+    font-size: 44px;
+    letter-spacing: 0px;
+    font-weight: 600;
+  }
+  #results-screen {
+    max-width: 700px;
+    margin: 30px auto;
+    background: #fff;
+    padding: 24px 32px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  #results-screen h1 { margin-top: 0; }
+  .chart-panel {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .chart-wrap { position: relative; height: 360px; }
+  .note { color: #666; font-size: 16px; }
+  #jspsych-progressbar-container { display: none; }
+</style>
+</head>
+<body>
+
+<!-- type="module" so we can `import` the Firebase SDK below -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const CONDITIONS = ['word', 'nonword'];
+const N_PRACTICE_PER_CONDITION = 4;   // 4 words + 4 non-words = 8 practice trials
+const TRIAL_TIMEOUT = 2000;           // ms
+const FEEDBACK_DURATION = 600;        // ms
+const GROUP_DATA_KEY = 'ldt_experiment_group_data'; // localStorage fallback key
+const SESSIONS_COLLECTION = 'ldt_sessions';          // Firestore collection name
+
+// Colourblind-friendly palette (Okabe-Ito)
+const COLOR_CORRECT = '#0072B2';     // blue -- correct feedback
+const COLOR_INCORRECT = '#D55E00';   // vermillion -- incorrect feedback
+
+// Fill this in with your own project's config (Firebase console -> Project
+// settings -> General -> Your apps -> SDK setup and configuration -> Config).
+// Leave apiKey as the placeholder to fall back to browser localStorage only.
+const firebaseConfig = {
+  apiKey: "AIzaSyAosFJOodna6aewWIgeLbSPkVShuSzCbXg",
+  authDomain: "lexical-decision.firebaseapp.com",
+  projectId: "lexical-decision",
+  storageBucket: "lexical-decision.firebasestorage.app",
+  messagingSenderId: "657374040430",
+  appId: "1:657374040430:web:b0f9d47d222a792609317f"
+};
+
+let db = null;
+if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+  try {
+    const firebaseApp = initializeApp(firebaseConfig);
+    db = getFirestore(firebaseApp);
+  } catch (err) {
+    console.warn('Firebase failed to initialize, falling back to localStorage:', err);
+  }
+}
+
+let testTrialsCompleted = 0;
+
+/* ============================================================
+   STIMULI — all items are exactly 6 characters long.
+   ============================================================ */
+const WORDS = [
+  "GARDEN","PENCIL","WINDOW","PURPLE","ANIMAL","FRIEND","MARKET","SILVER",
+  "WONDER","CASTLE","FOREST","CANDLE","DRAGON","HAMMER","ISLAND","JACKET",
+  "KETTLE","LADDER","MEADOW","NATURE","ORANGE","PICKLE","RABBIT","SPOKEN",
+  "TUNNEL","TURKEY","VOYAGE","WALNUT","YELLOW","ZIPPER"
+];
+const NONWORDS = [
+  "FANDLE","GORPEL","TRENIK","PLUMBO","CRENTA","VOSKIN","BRIMTO","SNARFE",
+  "TWIRLA","GLUMPO","FRENTO","SPLONK","DRENTA","KRIMPO","VELDOR","PLASKI",
+  "TUMREN","WORFEL","NILVOR","CHASPO","BLUNKA","STRIPO","VANDLE","GRELTO",
+  "MORFEN","CLANTO","PREVOL","SKIMTA","WRENDO","FLUMPA"
+];
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const shuffledWords    = shuffle(WORDS);
+const shuffledNonwords = shuffle(NONWORDS);
+
+// Practice and test items are drawn from disjoint slices of the same
+// shuffled lists, so no stimulus can appear in both the practice block
+// and the main experiment.
+const practiceWords    = shuffledWords.slice(0, N_PRACTICE_PER_CONDITION);
+const practiceNonwords = shuffledNonwords.slice(0, N_PRACTICE_PER_CONDITION);
+const testWords        = shuffledWords.slice(N_PRACTICE_PER_CONDITION);
+const testNonwords     = shuffledNonwords.slice(N_PRACTICE_PER_CONDITION);
+
+const practiceItems = shuffle([
+  ...practiceWords.map(w => ({ stimulus: w, condition: "word", phase: "practice" })),
+  ...practiceNonwords.map(w => ({ stimulus: w, condition: "nonword", phase: "practice" }))
+]);
+const testItems = shuffle([
+  ...testWords.map(w => ({ stimulus: w, condition: "word", phase: "test" })),
+  ...testNonwords.map(w => ({ stimulus: w, condition: "nonword", phase: "test" }))
+]);
+const TOTAL_TEST_TRIALS = testItems.length;
+
+// Safeguard: warn (rather than silently allow) if a future edit to the
+// stimulus lists or slicing ever causes a practice/test overlap.
+const practiceStimSet = new Set(practiceItems.map(p => p.stimulus));
+const overlap = testItems.filter(t => practiceStimSet.has(t.stimulus));
+if (overlap.length > 0) {
+  console.warn('Practice/test stimulus overlap detected:', overlap.map(o => o.stimulus));
+}
+
+const jsPsych = initJsPsych({
+  show_progress_bar: true,
+  auto_update_progress_bar: false,
+  message_progress_bar: 'Progress',
+  on_finish: async function () {
+    document.body.innerHTML = '<p style="text-align:center;margin-top:60px;font-size:16px;">Calculating your results...</p>';
+    const sessionSummary = summarize(jsPsych.data.get());
+    const { sessions: allSessions, source } = await saveAndFetchAllSessions(sessionSummary);
+    console.log(`Stored sessions: ${allSessions.length} (including this one, source: ${source})`);
+    const groupAvg = groupAverages(allSessions);
+    renderResults(sessionSummary, groupAvg, allSessions.length, source);
+  }
+});
+
+// Log how many sessions are already stored, before this session starts.
+async function logStoredSessionCount() {
+  try {
+    let count;
+    let source;
+    if (db) {
+      const snapshot = await getDocs(collection(db, SESSIONS_COLLECTION));
+      count = snapshot.size;
+      source = 'firebase';
+    } else {
+      count = loadGroupData().length;
+      source = 'localStorage';
+    }
+    console.log(`Previously stored sessions: ${count} (source: ${source})`);
+  } catch (err) {
+    console.warn('Could not fetch stored session count:', err);
+  }
+}
+logStoredSessionCount();
+
+/* ============================================================
+   TIMELINE
+   ============================================================ */
+const timeline = [];
+
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <div style="max-width:600px;margin:0 auto;text-align:left;">
+      <h2>Lexical Decision Task</h2>
+      <p>On each trial, you will see a set of 6 letters in the middle of the screen.</p>
+      <p>Your job is to decide, as quickly and accurately as possible, whether the letters
+      form a <b>real English word</b> or a <b>made-up non-word</b>.</p>
+      <p>Press the <b>right arrow key</b> if it IS a real word.<br>
+      Press the <b>left arrow key</b> if it is NOT a real word (a non-word).</p>
+      <p>You'll start with a short practice block of ${practiceItems.length} trials, then move on
+      to the main experiment (${TOTAL_TEST_TRIALS} trials).</p>
+      <p>Press the spacebar to begin the practice block.</p>
+    </div>`,
+  choices: [' ']
+});
+
+const fixation = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<div class="fixation">+</div>',
+  choices: "NO_KEYS",
+  trial_duration: 500
+};
+
+const ldt_trial = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function () {
+    const tv = jsPsych.timelineVariable;
+    let html = `<div style="position:relative;"><div class="stimulus">${tv('stimulus')}</div>`;
+    if (tv('phase') === 'practice') {
+      html += `<p style="position:absolute;top:100%;left:50%;transform:translateX(-50%);white-space:nowrap;margin-top:18px;font-size:16px;">Press <b>&larr;</b> if it is NOT a real word &nbsp;|&nbsp; <b>&rarr;</b> if it IS a real word</p>`;
+    }
+    html += `</div>`;
+    return html;
+  },
+  choices: ['arrowleft', 'arrowright'],
+  trial_duration: TRIAL_TIMEOUT,
+  data: function () {
+    const tv = jsPsych.timelineVariable;
+    return { task: 'ldt_response', condition: tv('condition'), stimulus: tv('stimulus'), phase: tv('phase') };
+  },
+  on_finish: function (data) {
+    const correctKey = data.condition === 'word' ? 'arrowright' : 'arrowleft';
+    data.correct = data.response === correctKey;
+    if (data.phase === 'test') {
+      testTrialsCompleted++;
+      jsPsych.setProgressBar(testTrialsCompleted / TOTAL_TEST_TRIALS);
+    }
+  }
+};
+
+function feedback_trial(showFeedback) {
+  return {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: function () {
+      const last = jsPsych.data.get().last(1).values()[0];
+      if (last.response === null) {
+        return `
+          <div style="max-width:500px;margin:0 auto;">
+            <p style="font-size:22px;color:#b8860b;">You timed out on this trial</p>
+            <p>Press the spacebar to continue to the next trial.</p>
+          </div>`;
+      }
+      if (!showFeedback) return '';
+      return last.correct
+        ? `<p class="feedback" style="color:${COLOR_CORRECT};">CORRECT</p>`
+        : `<p class="feedback" style="color:${COLOR_INCORRECT};">INCORRECT</p>`;
+    },
+    choices: function () {
+      const last = jsPsych.data.get().last(1).values()[0];
+      return last.response === null ? [' '] : "NO_KEYS";
+    },
+    trial_duration: function () {
+      const last = jsPsych.data.get().last(1).values()[0];
+      return last.response === null ? null : FEEDBACK_DURATION;
+    }
+  };
+}
+
+// Practice block (with feedback)
+timeline.push({
+  timeline: [fixation, ldt_trial, feedback_trial(true)],
+  timeline_variables: practiceItems
+});
+
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <div style="max-width:600px;margin:0 auto;text-align:left;">
+      <h2>Practice complete</h2>
+      <p>Now the main experiment begins (${TOTAL_TEST_TRIALS} trials). There is no feedback
+      this time. Respond as quickly and accurately as you can.</p>
+      <p>A progress bar will now appear above the display to show how far through the experiment you are.</p>
+      <p>Press the spacebar to begin.</p>
+    </div>`,
+  choices: [' '],
+  on_load: function () {
+    const bar = document.querySelector('#jspsych-progressbar-container');
+    if (bar) bar.style.display = 'block';
+  }
+});
+
+// Main test block (no feedback)
+timeline.push({
+  timeline: [fixation, ldt_trial, feedback_trial(false)],
+  timeline_variables: testItems
+});
+
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<p>You have finished the task. Calculating your results...</p>',
+  choices: "NO_KEYS",
+  trial_duration: 1000
+});
+
+jsPsych.run(timeline);
+
+/* ============================================================
+   RESULTS
+   ============================================================ */
+function summarize(dataCollection) {
+  // mean RT for each condition, correct trials only.
+  // Timed-out trials (response === null) are excluded -- they're marked
+  // correct: false in on_finish, so the correct:true filter already omits them.
+  const summary = [];
+  CONDITIONS.forEach(condition => {
+    const trials = dataCollection.filter({ task: 'ldt_response', phase: 'test', condition, correct: true });
+    const n = trials.count();
+    const meanRT = n > 0 ? trials.select('rt').mean() : null;
+    summary.push({ condition, meanRT, n });
+  });
+  return summary;
+}
+
+function loadGroupData() {
+  try {
+    return JSON.parse(localStorage.getItem(GROUP_DATA_KEY) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveSessionToGroupData(sessionSummary) {
+  const all = loadGroupData();
+  all.push({ timestamp: Date.now(), summary: sessionSummary });
+  localStorage.setItem(GROUP_DATA_KEY, JSON.stringify(all));
+  return all;
+}
+
+// Write this session to Firestore, then read every stored session back for
+// the group average. Falls back to localStorage if Firebase isn't configured
+// or a read/write fails. Returns { sessions, source }.
+async function saveAndFetchAllSessions(sessionSummary) {
+  if (db) {
+    try {
+      await addDoc(collection(db, SESSIONS_COLLECTION), {
+        timestamp: Date.now(),
+        summary: sessionSummary
+      });
+      const snapshot = await getDocs(collection(db, SESSIONS_COLLECTION));
+      const sessions = snapshot.docs.map(doc => doc.data());
+      return { sessions, source: 'firebase' };
+    } catch (err) {
+      console.warn('Firebase read/write failed, falling back to localStorage:', err);
+    }
+  }
+  return { sessions: saveSessionToGroupData(sessionSummary), source: 'localStorage' };
+}
+
+function groupAverages(allSessions) {
+  // average meanRT per condition across all stored sessions (including current)
+  const buckets = {};
+  allSessions.forEach(sess => {
+    sess.summary.forEach(row => {
+      if (row.meanRT === null) return;
+      if (!buckets[row.condition]) buckets[row.condition] = [];
+      buckets[row.condition].push(row.meanRT);
+    });
+  });
+  const avg = {};
+  Object.keys(buckets).forEach(key => {
+    avg[key] = buckets[key].reduce((a, b) => a + b, 0) / buckets[key].length;
+  });
+  return avg;
+}
+
+function renderResults(sessionSummary, groupAvg, nSessions, source) {
+  document.body.innerHTML = `
+    <div id="results-screen">
+      <h1>Your Results</h1>
+      <p class = "note"><b>How to take a screenshot:</b><br>If you're on a Mac, press <b> &#8984; + Shift + 3 </b>at the same time to grab the whole screen.<br>
+      If you're on a Windows PC, press <b><kbd>Win</kbd> + Shift + S</b> at the same time to grab the whole screen.</p>
+      <p class = "note"><b>Relevant textbook section:</b><br>See <b>Section 11.1</b> in the Chun & Most textbook for more information on the lexical decision task.<br></p>
+      <div class="chart-panel">
+        <div class="chart-wrap"><canvas id="chart-ldt"></canvas></div>
+      </div>
+    </div>
+  `;
+  drawChart('chart-ldt', sessionSummary, groupAvg, nSessions);
+}
+
+function drawChart(canvasId, sessionSummary, groupAvg, nSessions) {
+  const getVal = (condition, source) => {
+    if (source === 'session') {
+      const row = sessionSummary.find(r => r.condition === condition);
+      return row && row.meanRT !== null ? Math.round(row.meanRT) : null;
+    } else {
+      return groupAvg[condition] !== undefined ? Math.round(groupAvg[condition]) : null;
+    }
+  };
+
+  new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: {
+      labels: ['Words', 'Non-words'],
+      datasets: [
+        { label: 'Your Mean RT', data: [getVal('word', 'session'), getVal('nonword', 'session')], backgroundColor: COLOR_CORRECT },
+        { label: `Class average (${nSessions} people)`, data: [getVal('word', 'group'), getVal('nonword', 'group')], backgroundColor: 'rgba(0,114,178,0.35)' }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { font: { size: 14 } } }
+      },
+      scales: {
+        y: {
+          title: { display: true, text: 'Reaction time (ms)', font: { size: 15 } },
+          ticks: { font: { size: 13 } },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
