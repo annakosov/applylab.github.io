@@ -6,70 +6,276 @@
 
 <style>
 
+:root{
+  --bg:#0d0f14;
+  --bg-grad:#11141c;
+  --panel:#161922;
+  --panel-2:#12141b;
+  --border:#262b38;
+  --border-soft:#1e222c;
+  --text:#ffffff;
+  --muted:#9a9fae;
+  --accent:#6ee7d8;
+  --accent-dim:#3d7d76;
+  --l-color:#ff0000;
+  --m-color:#00c800;
+  --s-color:#2b5bff;
+}
+
+*{box-sizing:border-box;}
+
 body{
-font-family:sans-serif;
-font-size:18pt;
-margin:20px;
+  font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, var(--bg-grad), transparent),
+    var(--bg);
+  color:var(--text);
+  margin:0;
+  padding:48px 32px 80px;
+}
+
+header{
+  max-width:1080px;
+  margin:0 auto 56px;
+}
+
+.eyebrow{
+  font-size:12px;
+  letter-spacing:0.22em;
+  text-transform:uppercase;
+  color:var(--accent);
+  margin-bottom:14px;
+  font-weight:500;
+}
+
+h1{
+  font-weight:700;
+  font-size:34px;
+  letter-spacing:-0.01em;
+  margin:0 0 12px;
+  color:var(--text);
+}
+
+.subtitle{
+  color:var(--muted);
+  font-size:15px;
+  line-height:1.6;
+  max-width:560px;
+}
+
+.wrap{
+  max-width:1080px;
+  margin:0 auto;
+  display:flex;
+  flex-direction:column;
+  gap:36px;
+}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:28px;
+}
+
+.cardHead{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  margin-bottom:18px;
+}
+
+.cardTitle{
+  font-size:11px;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+
+.cardHint{
+  font-size:12px;
+  color:var(--muted);
+  opacity:0.75;
 }
 
 .demo{
-display:flex;
-gap:40px;
-margin-bottom:70px;
+  display:flex;
+  gap:32px;
+  flex-wrap:wrap;
+  align-items:flex-start;
+}
+
+.canvasFrame{
+  flex:1 1 480px;
+  min-width:280px;
+  border-radius:10px;
+  overflow:hidden;
+  border:1px solid var(--border-soft);
+  line-height:0;
 }
 
 canvas{
-border:1px solid #777;
+  display:block;
+  width:100%;
+  height:auto;
+  background:var(--panel-2);
+  cursor:crosshair;
 }
 
 .right{
-display:flex;
-flex-direction:column;
-align-items:center;
-width:260px;
+  flex:0 0 220px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
 }
 
 .patchTitle{
-margin-bottom:10px;
+  font-size:11px;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:16px;
+}
+
+.patchRing{
+  width:150px;
+  height:150px;
+  border-radius:50%;
+  padding:10px;
+  background:radial-gradient(circle at 35% 30%, #232733, #14161d 70%);
+  border:1px solid var(--border);
+  margin-bottom:28px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
 
 .patch{
-width:160px;
-height:160px;
-border-radius:50%;
-background:black;
-border:1px solid #999;
-margin-bottom:25px;
+  width:100%;
+  height:100%;
+  border-radius:50%;
+  background:#000;
+  transition:background-color 0.15s ease;
 }
 
-.bar{
-width:160px;
-height:22px;
-background:#ddd;
-margin:8px 0;
-position:relative;
+.meters{
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  margin-bottom:22px;
 }
 
-.fill{
-height:100%;
-width:0%;
+.meter{
+  width:100%;
 }
 
-.barLabel{
-position:absolute;
-left:-30px;
-top:-2px;
-font-size:18pt;
+.meterHead{
+  display:flex;
+  justify-content:space-between;
+  font-size:12px;
+  margin-bottom:6px;
+  color:var(--muted);
 }
 
-#rbar1,#rbar2{background:red}
-#gbar1,#gbar2{background:green}
-#bbar1,#bbar2{background:blue}
+.meterHead .chan{
+  font-weight:600;
+  letter-spacing:0.04em;
+}
+
+.meterTrack{
+  height:10px;
+  border-radius:6px;
+  background:var(--panel-2);
+  border:1px solid var(--border-soft);
+  overflow:hidden;
+}
+
+.meterFill{
+  height:100%;
+  width:0%;
+  border-radius:6px;
+  transition:width 0.08s linear;
+}
+
+#rbar1,#rbar2{background:var(--l-color);}
+#gbar1,#gbar2{background:var(--m-color);}
+#bbar1,#bbar2{background:var(--s-color);}
+
+.metersLabel{
+  font-size:11px;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:10px;
+  align-self:flex-start;
+}
+
+.chan.l{color:var(--l-color);}
+.chan.m{color:var(--m-color);}
+.chan.s{color:var(--s-color);}
 
 button{
-font-size:18pt;
-margin-top:20px;
-padding:6px 14px;
+  font-size:12px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--muted);
+  background:transparent;
+  border:1px solid var(--border);
+  border-radius:7px;
+  padding:9px 20px;
+  cursor:pointer;
+  transition:all 0.15s ease;
+}
+
+button:hover{
+  color:var(--accent);
+  border-color:var(--accent-dim);
+}
+
+button:focus-visible,
+canvas:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+
+@media (prefers-reduced-motion: reduce){
+  .meterFill, .patch{transition:none;}
+}
+
+.toast{
+  position:fixed;
+  left:50%;
+  bottom:36px;
+  transform:translate(-50%,16px);
+  background:var(--panel);
+  border:1px solid var(--accent-dim);
+  color:var(--text);
+  font-size:14px;
+  font-weight:600;
+  padding:14px 24px;
+  border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.4);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 0.2s ease, transform 0.2s ease;
+  z-index:10;
+}
+
+.toast.show{
+  opacity:1;
+  transform:translate(-50%,0);
+}
+
+@media (prefers-reduced-motion: reduce){
+  .toast{transition:none;}
+}
+
+@media (max-width:640px){
+  body{padding:32px 18px 60px;}
+  h1{font-size:26px;}
+  .card{padding:20px;}
+  .right{flex:1 1 100%;}
 }
 
 </style>
@@ -77,43 +283,92 @@ padding:6px 14px;
 
 <body>
 
-<div class="demo">
+<header>
+  <div class="eyebrow">Color Vision · Metamerism</div>
+  <h1>Metamer Spectrum Drawer</h1>
+  <p class="subtitle">Paint a photon spectrum by wavelength and see the color it predicts on the retina — two very different spectra can excite the L, M, and S cones identically and look the same.</p>
+</header>
 
-<canvas id="spec1" width="720" height="360"></canvas>
+<div class="wrap">
 
-<div class="right">
+<div class="card">
+  <div class="cardHead">
+    <span class="cardTitle">Sample 1</span>
+    <span class="cardHint">click + drag across the plot to paint</span>
+  </div>
+  <div class="demo">
 
-<div class="patchTitle">Predicted Color</div>
-<div id="patch1" class="patch"></div>
+    <div class="canvasFrame">
+      <canvas id="spec1" width="720" height="360"></canvas>
+    </div>
 
-<div class="bar"><span class="barLabel">L</span><div id="rbar1" class="fill"></div></div>
-<div class="bar"><span class="barLabel">M</span><div id="gbar1" class="fill"></div></div>
-<div class="bar"><span class="barLabel">S</span><div id="bbar1" class="fill"></div></div>
+    <div class="right">
+      <div class="patchTitle">Predicted Color</div>
+      <div class="patchRing" id="ring1"><div id="patch1" class="patch"></div></div>
 
-<button onclick="clearSpectrum(1)">Clear</button>
+      <div class="metersLabel">Cone responses</div>
+      <div class="meters">
+        <div class="meter">
+          <div class="meterHead"><span class="chan l">L</span><span id="rval1">0%</span></div>
+          <div class="meterTrack"><div id="rbar1" class="meterFill"></div></div>
+        </div>
+        <div class="meter">
+          <div class="meterHead"><span class="chan m">M</span><span id="gval1">0%</span></div>
+          <div class="meterTrack"><div id="gbar1" class="meterFill"></div></div>
+        </div>
+        <div class="meter">
+          <div class="meterHead"><span class="chan s">S</span><span id="bval1">0%</span></div>
+          <div class="meterTrack"><div id="bbar1" class="meterFill"></div></div>
+        </div>
+      </div>
+
+      <button onclick="clearSpectrum(1)">Clear</button>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="card">
+  <div class="cardHead">
+    <span class="cardTitle">Sample 2</span>
+    <span class="cardHint">click + drag across the plot to paint</span>
+  </div>
+  <div class="demo">
+
+    <div class="canvasFrame">
+      <canvas id="spec2" width="720" height="360"></canvas>
+    </div>
+
+    <div class="right">
+      <div class="patchTitle">Predicted Color</div>
+      <div class="patchRing" id="ring2"><div id="patch2" class="patch"></div></div>
+
+      <div class="metersLabel">Cone responses</div>
+      <div class="meters">
+        <div class="meter">
+          <div class="meterHead"><span class="chan l">L</span><span id="rval2">0%</span></div>
+          <div class="meterTrack"><div id="rbar2" class="meterFill"></div></div>
+        </div>
+        <div class="meter">
+          <div class="meterHead"><span class="chan m">M</span><span id="gval2">0%</span></div>
+          <div class="meterTrack"><div id="gbar2" class="meterFill"></div></div>
+        </div>
+        <div class="meter">
+          <div class="meterHead"><span class="chan s">S</span><span id="bval2">0%</span></div>
+          <div class="meterTrack"><div id="bbar2" class="meterFill"></div></div>
+        </div>
+      </div>
+
+      <button onclick="clearSpectrum(2)">Clear</button>
+    </div>
+
+  </div>
+</div>
 
 </div>
-</div>
 
-
-<div class="demo">
-
-<canvas id="spec2" width="720" height="360"></canvas>
-
-<div class="right">
-
-<div class="patchTitle">Predicted Color</div>
-<div id="patch2" class="patch"></div>
-
-<div class="bar"><span class="barLabel">L</span><div id="rbar2" class="fill"></div></div>
-<div class="bar"><span class="barLabel">M</span><div id="gbar2" class="fill"></div></div>
-<div class="bar"><span class="barLabel">S</span><div id="bbar2" class="fill"></div></div>
-
-<button onclick="clearSpectrum(2)">Clear</button>
-
-</div>
-</div>
-
+<div id="matchToast" class="toast">Color match — these spectra are metamers</div>
 
 <script>
 
@@ -123,6 +378,8 @@ const wlMax=700;
 
 
 let demos={};
+let matched=false;
+let toastTimer=null;
 
 initDemo(1);
 initDemo(2);
@@ -215,9 +472,35 @@ function drawSpectrum(){
 
 ctx.clearRect(0,0,canvas.width,canvas.height);
 
+// dark instrument background for the plot area
+ctx.fillStyle="#12141b";
+ctx.fillRect(leftMargin,plotTop,N,plotHeight);
+
+// faint horizontal gridlines at 25/50/75/100%
+ctx.strokeStyle="rgba(255,255,255,0.06)";
+ctx.lineWidth=1;
+for(let g=0;g<=4;g++){
+let gy=plotTop+plotHeight*(1-g/4);
+ctx.beginPath();
+ctx.moveTo(leftMargin,gy);
+ctx.lineTo(leftMargin+N,gy);
+ctx.stroke();
+}
+
+// faint vertical gridlines every 50nm
+for(let w=400;w<=700;w+=50){
+let gx=leftMargin+(w-380)/(700-380)*N;
+ctx.beginPath();
+ctx.moveTo(gx,plotTop);
+ctx.lineTo(gx,plotBottom);
+ctx.stroke();
+}
+
 for(let i=0;i<N;i++){
 
 let val=spectrum[i];
+if(val<=0) continue;
+
 let y=plotTop+plotHeight*(1-val);
 
 let rgb=wavelengthToRGB(wl[i]);
@@ -228,37 +511,39 @@ ctx.fillRect(i+leftMargin,y,1,plotBottom-y);
 
 }
 
-ctx.strokeStyle="black";
+ctx.strokeStyle="rgba(110,231,216,0.55)";
+ctx.lineWidth=1;
 ctx.beginPath();
 ctx.moveTo(leftMargin,plotBottom);
-ctx.lineTo(leftMargin + N,plotBottom);  // FIXED HERE
+ctx.lineTo(leftMargin + N,plotBottom);
 ctx.stroke();
 
 ctx.save();
 
-ctx.font="18pt sans-serif";
-ctx.fillStyle="black";
+ctx.font="13px sans-serif";
+ctx.fillStyle="#9a9fae";
 ctx.textAlign="center";
 
 for(let w=400;w<=700;w+=50){
 
 let x=leftMargin+(w-380)/(700-380)*N;
-ctx.fillText(w,x,plotBottom+25);
+ctx.fillText(w,x,plotBottom+22);
 
 }
 
-ctx.fillText("Wavelength (nm)",leftMargin+N/2,canvas.height-5);
+ctx.fillStyle="#6a6f80";
+ctx.fillText("WAVELENGTH (nm)",leftMargin+N/2,canvas.height-8);
 
 ctx.restore();
 
 ctx.save();
 
-ctx.translate(30,plotTop+plotHeight/2);
+ctx.translate(28,plotTop+plotHeight/2);
 ctx.rotate(-Math.PI/2);
 ctx.textAlign="center";
-ctx.font="18pt sans-serif";
-ctx.fillStyle="black";
-ctx.fillText("# photons",0,0);
+ctx.font="12px sans-serif";
+ctx.fillStyle="#9a9fae";
+ctx.fillText("# PHOTONS",0,0);
 
 ctx.restore();
 
@@ -319,8 +604,9 @@ updateUI(rgb,Lr,Mr,Sr);
 
 function updateUI(rgb, Lr, Mr, Sr){
 
-document.getElementById("patch"+id).style.background =
-`rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
+let rgbStr=`rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
+
+document.getElementById("patch"+id).style.background = rgbStr;
 
 let maxCone = 1//Math.max(Lr,Mr,Sr);
 
@@ -333,6 +619,15 @@ Sr/=maxCone;
 document.getElementById("rbar"+id).style.width=(Lr*100)+"%";
 document.getElementById("gbar"+id).style.width=(Mr*100)+"%";
 document.getElementById("bbar"+id).style.width=(Sr*100)+"%";
+
+document.getElementById("rval"+id).textContent=Math.round(Lr*100)+"%";
+document.getElementById("gval"+id).textContent=Math.round(Mr*100)+"%";
+document.getElementById("bval"+id).textContent=Math.round(Sr*100)+"%";
+
+demos[id]=demos[id]||{};
+demos[id].cone={L:Lr,M:Mr,S:Sr};
+
+checkMatch();
 
 }
 
@@ -385,7 +680,7 @@ if(!mouseDown) return;
 
 let rect = canvas.getBoundingClientRect();
 
-// 🔥 FIX: account for CSS vs canvas scaling
+// account for CSS vs canvas scaling
 let scaleX = canvas.width / rect.width;
 let scaleY = canvas.height / rect.height;
 
@@ -440,6 +735,38 @@ function clearSpectrum(id){
 
 demos[id].spectrum.fill(0);
 demos[id].drawSpectrum();
+
+}
+
+
+function checkMatch(){
+
+if(!demos[1] || !demos[2] || !demos[1].cone || !demos[2].cone) return;
+
+let c1=demos[1].cone, c2=demos[2].cone;
+
+let dL=Math.abs(c1.L-c2.L);
+let dM=Math.abs(c1.M-c2.M);
+let dS=Math.abs(c1.S-c2.S);
+
+let hasSignal = (c1.L+c1.M+c1.S)>0.01 && (c2.L+c2.M+c2.S)>0.01;
+let isMatch = hasSignal && dL<0.1 && dM<0.1 && dS<0.1;
+
+if(isMatch && !matched){
+showMatchToast();
+}
+
+matched = isMatch;
+
+}
+
+function showMatchToast(){
+
+let toast=document.getElementById("matchToast");
+toast.classList.add("show");
+
+clearTimeout(toastTimer);
+toastTimer=setTimeout(()=>toast.classList.remove("show"), 3000);
 
 }
 
