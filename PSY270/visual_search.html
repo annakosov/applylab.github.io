@@ -57,8 +57,8 @@ import {
 const SET_SIZES = [4, 8, 16, 32];
 const TYPES = ['feature', 'conjunction'];
 const PRESENCE = ['present', 'absent'];
-const REPS_PER_CONDITION = 10;  //10 trials per condition (16 conditions * 10 = 160 test trials)
-const N_PRACTICE_TRIALS = 10;//10
+const REPS_PER_CONDITION = 10;  //10//1 trials per condition (16 conditions * 10 = 160 test trials)
+const N_PRACTICE_TRIALS = 10;//10//4
 const DISPLAY_SIZE = 520;       // px, square search area
 const GRID_COLS = 8;
 const GRID_ROWS = 8;
@@ -465,8 +465,8 @@ function drawChart(canvasId, type, sessionSummary, groupAvg, nSessions, yMax, yS
       labels: SET_SIZES,
       datasets: [
         { label: 'You — Present', data: getVals('present', 'session'), backgroundColor: COLOR_TARGET },
-        { label: 'You — Absent', data: getVals('absent', 'session'), backgroundColor: COLOR_DISTRACTOR },
         { label: `Class average (${nSessions} people) - Present`, data: getVals('present', 'group'), backgroundColor: 'rgba(0,114,178,0.35)' },
+        { label: 'You — Absent', data: getVals('absent', 'session'), backgroundColor: COLOR_DISTRACTOR },
         { label: `Class average (${nSessions} people) - Absent`, data: getVals('absent', 'group'), backgroundColor: 'rgba(230,159,0,0.35)' }
       ]
     },
