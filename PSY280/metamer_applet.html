@@ -14,7 +14,8 @@
   --border:#262b38;
   --border-soft:#1e222c;
   --text:#ffffff;
-  --muted:#9a9fae;
+  --muted:#aab0c0;
+  --muted-dim:#7d8293;
   --accent:#6ee7d8;
   --accent-dim:#3d7d76;
   --l-color:#ff0000;
@@ -31,84 +32,84 @@ body{
     var(--bg);
   color:var(--text);
   margin:0;
-  padding:48px 32px 80px;
+  padding:32px 28px 56px;
 }
 
 header{
-  max-width:1080px;
-  margin:0 auto 56px;
+  max-width:1100px;
+  margin:0 auto 28px;
 }
 
 .eyebrow{
-  font-size:12px;
-  letter-spacing:0.22em;
+  font-size:11px;
+  letter-spacing:0.2em;
   text-transform:uppercase;
   color:var(--accent);
-  margin-bottom:14px;
-  font-weight:500;
+  margin-bottom:10px;
+  font-weight:600;
 }
 
 h1{
   font-weight:700;
-  font-size:34px;
+  font-size:26px;
   letter-spacing:-0.01em;
-  margin:0 0 12px;
+  margin:0 0 8px;
   color:var(--text);
 }
 
 .subtitle{
   color:var(--muted);
-  font-size:15px;
-  line-height:1.6;
-  max-width:1080px;
+  font-size:13px;
+  line-height:1.55;
+  max-width:1100px;
 }
 
 .wrap{
-  max-width:1080px;
+  max-width:1150px;
   margin:0 auto;
-  display:flex;
-  flex-direction:column;
-  gap:36px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(510px, .7fr));
+  gap:24px;
+  align-items:start;
+  justify-content: center;
 }
 
 .card{
   background:var(--panel);
   border:1px solid var(--border);
-  border-radius:14px;
-  padding:28px;
+  border-radius:12px;
+  padding:18px 20px 20px;
 }
 
 .cardHead{
   display:flex;
   align-items:baseline;
   justify-content:space-between;
-  margin-bottom:18px;
+  margin-bottom:12px;
 }
 
 .cardTitle{
-  font-size:11px;
-  letter-spacing:0.18em;
+  font-size:13px;
+  letter-spacing:0.16em;
   text-transform:uppercase;
   color:var(--muted);
+  font-weight:600;
 }
 
 .cardHint{
-  font-size:12px;
-  color:var(--muted);
-  opacity:0.75;
+  font-size:13px;
+  color:var(--muted-dim);
 }
 
 .demo{
   display:flex;
-  gap:32px;
-  flex-wrap:wrap;
-  align-items:flex-start;
+  flex-direction:column;
+  gap:14px;
 }
 
 .canvasFrame{
-  flex:1 1 480px;
-  min-width:280px;
-  border-radius:10px;
+  width:100%;
+  border-radius:8px;
   overflow:hidden;
   border:1px solid var(--border-soft);
   line-height:0;
@@ -123,28 +124,37 @@ canvas{
 }
 
 .right{
-  flex:0 0 220px;
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  gap:20px;
+  width:100%;
+}
+
+.patchCol{
+  flex:0 0 auto;
   display:flex;
   flex-direction:column;
   align-items:center;
 }
 
 .patchTitle{
-  font-size:11px;
-  letter-spacing:0.16em;
+  font-size:13px;
+  letter-spacing:0.14em;
   text-transform:uppercase;
   color:var(--muted);
-  margin-bottom:16px;
+  margin-bottom:10px;
+  font-weight:600;
+  white-space:nowrap;
 }
 
 .patchRing{
-  width:150px;
-  height:150px;
+  width:92px;
+  height:92px;
   border-radius:50%;
-  padding:10px;
+  padding:7px;
   background:radial-gradient(circle at 35% 30%, #232733, #14161d 70%);
   border:1px solid var(--border);
-  margin-bottom:28px;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -158,12 +168,28 @@ canvas{
   transition:background-color 0.15s ease;
 }
 
+.metersCol{
+  flex:1 1 auto;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+}
+
+.metersLabel{
+  font-size:13px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:8px;
+  font-weight:600;
+}
+
 .meters{
   width:100%;
   display:flex;
   flex-direction:column;
-  gap:14px;
-  margin-bottom:22px;
+  gap:8px;
+  margin-bottom:12px;
 }
 
 .meter{
@@ -173,19 +199,19 @@ canvas{
 .meterHead{
   display:flex;
   justify-content:space-between;
-  font-size:12px;
-  margin-bottom:6px;
+  font-size:13px;
+  margin-bottom:4px;
   color:var(--muted);
 }
 
 .meterHead .chan{
-  font-weight:600;
+  font-weight:700;
   letter-spacing:0.04em;
 }
 
 .meterTrack{
-  height:10px;
-  border-radius:6px;
+  height:8px;
+  border-radius:5px;
   background:var(--panel-2);
   border:1px solid var(--border-soft);
   overflow:hidden;
@@ -194,7 +220,7 @@ canvas{
 .meterFill{
   height:100%;
   width:0%;
-  border-radius:6px;
+  border-radius:5px;
   transition:width 0.08s linear;
 }
 
@@ -202,28 +228,20 @@ canvas{
 #gbar1,#gbar2{background:var(--m-color);}
 #bbar1,#bbar2{background:var(--s-color);}
 
-.metersLabel{
-  font-size:11px;
-  letter-spacing:0.16em;
-  text-transform:uppercase;
-  color:var(--muted);
-  margin-bottom:10px;
-  align-self:flex-start;
-}
-
 .chan.l{color:var(--l-color);}
 .chan.m{color:var(--m-color);}
 .chan.s{color:var(--s-color);}
 
 button{
-  font-size:12px;
-  letter-spacing:0.14em;
+  align-self:flex-start;
+  font-size:13px;
+  letter-spacing:0.12em;
   text-transform:uppercase;
   color:var(--muted);
   background:transparent;
   border:1px solid var(--border);
-  border-radius:7px;
-  padding:9px 20px;
+  border-radius:6px;
+  padding:7px 16px;
   cursor:pointer;
   transition:all 0.15s ease;
 }
@@ -271,11 +289,12 @@ canvas:focus-visible{
   .toast{transition:none;}
 }
 
-@media (max-width:640px){
-  body{padding:32px 18px 60px;}
-  h1{font-size:26px;}
-  .card{padding:20px;}
-  .right{flex:1 1 100%;}
+@media (max-width:520px){
+  body{padding:24px 16px 48px;}
+  h1{font-size:22px;}
+  .card{padding:16px;}
+  .right{flex-direction:column;align-items:flex-start;}
+  .patchCol{align-self:center;}
 }
 
 </style>
@@ -297,35 +316,38 @@ canvas:focus-visible{
 <div class="card">
   <div class="cardHead">
     <span class="cardTitle">Sample 1</span>
-    <span class="cardHint">click + drag across the plot to paint</span>
+    <span class="cardHint">click + drag to paint</span>
   </div>
   <div class="demo">
 
     <div class="canvasFrame">
-      <canvas id="spec1" width="720" height="360"></canvas>
+      <canvas id="spec1"></canvas>
     </div>
 
     <div class="right">
-      <div class="patchTitle">Predicted Color</div>
-      <div class="patchRing" id="ring1"><div id="patch1" class="patch"></div></div>
-
-      <div class="metersLabel">Cone responses</div>
-      <div class="meters">
-        <div class="meter">
-          <div class="meterHead"><span class="chan l">L</span><span id="rval1">0%</span></div>
-          <div class="meterTrack"><div id="rbar1" class="meterFill"></div></div>
-        </div>
-        <div class="meter">
-          <div class="meterHead"><span class="chan m">M</span><span id="gval1">0%</span></div>
-          <div class="meterTrack"><div id="gbar1" class="meterFill"></div></div>
-        </div>
-        <div class="meter">
-          <div class="meterHead"><span class="chan s">S</span><span id="bval1">0%</span></div>
-          <div class="meterTrack"><div id="bbar1" class="meterFill"></div></div>
-        </div>
+      <div class="patchCol">
+        <div class="patchTitle" align="center">Predicted<br>Colour</div>
+        <div class="patchRing" id="ring1"><div id="patch1" class="patch"></div></div>
       </div>
 
-      <button onclick="clearSpectrum(1)">Clear</button>
+      <div class="metersCol">
+        <div class="metersLabel">Cone responses</div>
+        <div class="meters">
+          <div class="meter">
+            <div class="meterHead"><span class="chan l">L</span><span id="rval1">0%</span></div>
+            <div class="meterTrack"><div id="rbar1" class="meterFill"></div></div>
+          </div>
+          <div class="meter">
+            <div class="meterHead"><span class="chan m">M</span><span id="gval1">0%</span></div>
+            <div class="meterTrack"><div id="gbar1" class="meterFill"></div></div>
+          </div>
+          <div class="meter">
+            <div class="meterHead"><span class="chan s">S</span><span id="bval1">0%</span></div>
+            <div class="meterTrack"><div id="bbar1" class="meterFill"></div></div>
+          </div>
+        </div>
+        <button onclick="clearSpectrum(1)">Clear</button>
+      </div>
     </div>
 
   </div>
@@ -335,35 +357,38 @@ canvas:focus-visible{
 <div class="card">
   <div class="cardHead">
     <span class="cardTitle">Sample 2</span>
-    <span class="cardHint">click + drag across the plot to paint</span>
+    <span class="cardHint">click + drag to paint</span>
   </div>
   <div class="demo">
 
     <div class="canvasFrame">
-      <canvas id="spec2" width="720" height="360"></canvas>
+      <canvas id="spec2"></canvas>
     </div>
 
     <div class="right">
-      <div class="patchTitle">Predicted Color</div>
-      <div class="patchRing" id="ring2"><div id="patch2" class="patch"></div></div>
-
-      <div class="metersLabel">Cone responses</div>
-      <div class="meters">
-        <div class="meter">
-          <div class="meterHead"><span class="chan l">L</span><span id="rval2">0%</span></div>
-          <div class="meterTrack"><div id="rbar2" class="meterFill"></div></div>
-        </div>
-        <div class="meter">
-          <div class="meterHead"><span class="chan m">M</span><span id="gval2">0%</span></div>
-          <div class="meterTrack"><div id="gbar2" class="meterFill"></div></div>
-        </div>
-        <div class="meter">
-          <div class="meterHead"><span class="chan s">S</span><span id="bval2">0%</span></div>
-          <div class="meterTrack"><div id="bbar2" class="meterFill"></div></div>
-        </div>
+      <div class="patchCol">
+        <div class="patchTitle" align ="center">Predicted<br> Colour</div>
+        <div class="patchRing" id="ring2"><div id="patch2" class="patch"></div></div>
       </div>
 
-      <button onclick="clearSpectrum(2)">Clear</button>
+      <div class="metersCol">
+        <div class="metersLabel">Cone responses</div>
+        <div class="meters">
+          <div class="meter">
+            <div class="meterHead"><span class="chan l">L</span><span id="rval2">0%</span></div>
+            <div class="meterTrack"><div id="rbar2" class="meterFill"></div></div>
+          </div>
+          <div class="meter">
+            <div class="meterHead"><span class="chan m">M</span><span id="gval2">0%</span></div>
+            <div class="meterTrack"><div id="gbar2" class="meterFill"></div></div>
+          </div>
+          <div class="meter">
+            <div class="meterHead"><span class="chan s">S</span><span id="bval2">0%</span></div>
+            <div class="meterTrack"><div id="bbar2" class="meterFill"></div></div>
+          </div>
+        </div>
+        <button onclick="clearSpectrum(2)">Clear</button>
+      </div>
     </div>
 
   </div>
@@ -392,16 +417,26 @@ function initDemo(id){
 let canvas=document.getElementById("spec"+id);
 let ctx=canvas.getContext("2d");
 
-const leftMargin = 80;
-const rightMargin = 0;
-const bottomMargin = 80;
+// logical (CSS-pixel) drawing space -- kept independent of device pixel ratio
+const LOGICAL_W = 630;
+const LOGICAL_H = 300;
 
-const plotWidth = canvas.width - leftMargin - rightMargin;
+const leftMargin = 64;
+const rightMargin = 0;
+const bottomMargin = 76;
+
+const plotWidth = LOGICAL_W - leftMargin - rightMargin;
 const plotTop = 0;
-const plotBottom = canvas.height - bottomMargin;
+const plotBottom = LOGICAL_H - bottomMargin;
 const plotHeight = plotBottom - plotTop;
 
 const N = plotWidth;
+
+// render at native device resolution so text and lines stay crisp
+const dpr = window.devicePixelRatio || 1;
+canvas.width = LOGICAL_W * dpr;
+canvas.height = LOGICAL_H * dpr;
+ctx.scale(dpr, dpr);
 
 
 let spectrum=new Array(N).fill(0);
@@ -473,14 +508,14 @@ return [R,G,B];
 
 function drawSpectrum(){
 
-ctx.clearRect(0,0,canvas.width,canvas.height);
+ctx.clearRect(0,0,LOGICAL_W,LOGICAL_H);
 
 // dark instrument background for the plot area
 ctx.fillStyle="#12141b";
 ctx.fillRect(leftMargin,plotTop,N,plotHeight);
 
 // faint horizontal gridlines at 25/50/75/100%
-ctx.strokeStyle="rgba(255,255,255,0.06)";
+ctx.strokeStyle="rgba(255,255,255,0.07)";
 ctx.lineWidth=1;
 for(let g=0;g<=4;g++){
 let gy=plotTop+plotHeight*(1-g/4);
@@ -523,29 +558,32 @@ ctx.stroke();
 
 ctx.save();
 
-ctx.font="14px sans-serif";
-ctx.fillStyle="#9a9fae";
+ctx.font="700 17px -apple-system, sans-serif";
+ctx.fillStyle="#c7cbd6";
 ctx.textAlign="center";
+ctx.textBaseline="alphabetic";
 
 for(let w=400;w<=700;w+=50){
 
 let x=leftMargin+(w-380)/(700-380)*N;
-ctx.fillText(w,x,plotBottom+22);
+ctx.fillText(w,Math.round(x)+0.5,plotBottom+26);
 
 }
 
-ctx.fillStyle="#9a9fae";
-ctx.fillText("WAVELENGTH (nm)",leftMargin+N/2,canvas.height-8);
+ctx.fillStyle="#aab0c0";
+ctx.font="700 14px -apple-system, sans-serif";
+ctx.fillText("WAVELENGTH (nm)",Math.round(leftMargin+N/2)+0.5,LOGICAL_H-10);
 
 ctx.restore();
 
 ctx.save();
 
-ctx.translate(28,plotTop+plotHeight/2);
+ctx.translate(20,plotTop+plotHeight/2);
 ctx.rotate(-Math.PI/2);
 ctx.textAlign="center";
-ctx.font="14px sans-serif";
-ctx.fillStyle="#9a9fae";
+ctx.textBaseline="alphabetic";
+ctx.font="700 14px -apple-system, sans-serif";
+ctx.fillStyle="#aab0c0";
 ctx.fillText("# PHOTONS",0,0);
 
 ctx.restore();
@@ -670,7 +708,7 @@ let wlCursor = wlMin + (wlMax - wlMin) * i / (N - 1);
 
 console.log(
 "cursor:", cursorX,
-"expected plot end:", canvas.width,
+"expected plot end:", LOGICAL_W,
 "wavelength:", wlCursor
 );
 
@@ -683,9 +721,9 @@ if(!mouseDown) return;
 
 let rect = canvas.getBoundingClientRect();
 
-// account for CSS vs canvas scaling
-let scaleX = canvas.width / rect.width;
-let scaleY = canvas.height / rect.height;
+// map CSS-pixel mouse position into the logical drawing space
+let scaleX = LOGICAL_W / rect.width;
+let scaleY = LOGICAL_H / rect.height;
 
 let px = (e.clientX - rect.left) * scaleX;
 let py = (e.clientY - rect.top) * scaleY;
@@ -753,7 +791,7 @@ let dM=Math.abs(c1.M-c2.M);
 let dS=Math.abs(c1.S-c2.S);
 
 let hasSignal = (c1.L+c1.M+c1.S)>0.01 && (c2.L+c2.M+c2.S)>0.01;
-let isMatch = hasSignal && dL<0.05 && dM<0.05 && dS<0.05;
+let isMatch = hasSignal && dL<0.03 && dM<0.03 && dS<0.03;
 
 if(isMatch && !matched){
 showMatchToast();

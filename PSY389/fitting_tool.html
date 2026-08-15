@@ -146,8 +146,22 @@
     display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-bottom:12px;
     flex-wrap:wrap;
   }
-  .plot-frame{ background:#FFFFFF; border-radius:8px; border:1px solid var(--border); padding:6px; }
+  .plot-frame{
+    background:#FFFFFF; border-radius:8px; border:1px solid var(--border); padding:6px;
+    position:relative; max-width:100%;
+  }
   svg{display:block; width:100%; height:auto;}
+
+  .resize-handle{
+    position:absolute; top:0; right:-7px; bottom:0; width:14px;
+    cursor:ew-resize; display:flex; align-items:center; justify-content:center;
+    touch-action:none; z-index:5;
+  }
+  .resize-handle::after{
+    content:""; width:4px; height:44px; border-radius:3px;
+    background:var(--border-lit); transition:background .15s ease;
+  }
+  .resize-handle:hover::after, .resize-handle.active::after{ background:var(--accent-curve); }
 
   .readouts{ display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-top:16px; }
   @media (max-width:640px){ .readouts{grid-template-columns:repeat(2,1fr);} }
@@ -261,8 +275,9 @@
         </div>
         <button class="secondary small" id="savePngBtn">Save as PNG</button>
       </div>
-      <div class="plot-frame">
+      <div class="plot-frame" id="plotFrame">
         <div id="plotHost"></div>
+        <div class="resize-handle" id="resizeHandle" title="Drag to resize the plot"></div>
       </div>
 
       <div class="readouts">
@@ -568,7 +583,7 @@
   // ---------------------------------------------------------------
   // SVG plot rendering
   // ---------------------------------------------------------------
-  const SVG_W = 700, SVG_H = 440;
+  let SVG_W = 700, SVG_H = 440;
 
   function niceStep(range, targetTicks){
     const rough = range/targetTicks;
@@ -811,6 +826,60 @@
       alert('Could not export the graph as a PNG. Please try again.');
     };
     img.src = url;
+  });
+
+  // ---------------------------------------------------------------
+  // Resizable plot: drag the handle on the right edge to change
+  // the graph's aspect ratio (width changes, height stays put)
+  // ---------------------------------------------------------------
+  const plotFrame = el('plotFrame');
+  const resizeHandle = el('resizeHandle');
+  const FRAME_CHROME = 14; // 2 x (6px padding + 1px border) on plot-frame
+
+  resizeHandle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const rect = plotFrame.getBoundingClientRect();
+    const startWidth = rect.width;
+    const startHeight = rect.height;
+
+    const panel = plotFrame.parentElement;
+    const panelStyle = getComputedStyle(panel);
+    const panelPadding = parseFloat(panelStyle.paddingLeft) + parseFloat(panelStyle.paddingRight);
+    const maxWidth = panel.clientWidth - panelPadding;
+    const minWidth = 320;
+
+    resizeHandle.classList.add('active');
+    resizeHandle.setPointerCapture(e.pointerId);
+
+    function onMove(ev){
+      const dx = ev.clientX - startX;
+      const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + dx));
+      plotFrame.style.width = newWidth + 'px';
+      plotFrame.style.height = startHeight + 'px';
+      plotFrame.style.flex = 'none';
+      SVG_W = Math.round(newWidth - FRAME_CHROME);
+      SVG_H = Math.round(startHeight - FRAME_CHROME);
+      renderPlot();
+    }
+    function onUp(ev){
+      resizeHandle.classList.remove('active');
+      try { resizeHandle.releasePointerCapture(e.pointerId); } catch(err){}
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  });
+
+  // Double-click the handle to reset to the default responsive size
+  resizeHandle.addEventListener('dblclick', () => {
+    plotFrame.style.width = '';
+    plotFrame.style.height = '';
+    plotFrame.style.flex = '';
+    SVG_W = 700;
+    SVG_H = 440;
+    renderPlot();
   });
 
   // ---------------------------------------------------------------
