@@ -57,9 +57,9 @@ h1{
 
 .subtitle{
   color:var(--muted);
-  font-size:13px;
+  font-size:15px;
   line-height:1.55;
-  max-width:720px;
+  max-width:1080px;
 }
 
 .stack{
@@ -85,7 +85,7 @@ h1{
 }
 
 .cardTitle{
-  font-size:10px;
+  font-size:12px;
   letter-spacing:0.16em;
   text-transform:uppercase;
   color:var(--muted);
@@ -93,7 +93,7 @@ h1{
 }
 
 .cardHint{
-  font-size:11px;
+  font-size:13px;
   color:var(--muted-dim);
 }
 
@@ -111,7 +111,7 @@ h1{
 }
 
 .controlLabel{
-  font-size:10px;
+  font-size:12px;
   letter-spacing:0.12em;
   text-transform:uppercase;
   color:var(--muted);
@@ -123,13 +123,13 @@ h1{
   text-transform:none;
   letter-spacing:0;
   font-weight:700;
-  font-size:11px;
+  font-size:13px;
 }
 
 select{
   width:100%;
   font-family:inherit;
-  font-size:13px;
+  font-size:15px;
   color:var(--text);
   background:var(--panel-2);
   border:1px solid var(--border);
@@ -154,7 +154,7 @@ input[type="range"]{
   border-radius:8px;
   padding:16px;
   text-align:center;
-  font-size:12px;
+  font-size:14px;
   color:var(--muted-dim);
   cursor:pointer;
   transition:border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
@@ -179,7 +179,7 @@ input[type="range"]{
 .dropHint{
   display:block;
   margin-top:4px;
-  font-size:10px;
+  font-size:12px;
   color:var(--muted-dim);
 }
 
@@ -220,9 +220,9 @@ canvas{
 <body>
 
 <header>
-  <div class="eyebrow">Signal Processing · Spatial Frequency</div>
+  <div class="eyebrow">Spatial Frequency Analysis</div>
   <h1>Fourier Image Reconstruction Demo</h1>
-  <p class="subtitle">Every image can be rebuilt from a sum of sine-wave gratings. Keeping only the strongest spatial-frequency components reconstructs a coarse approximation of the original — add more to sharpen the result.</p>
+  <p class="subtitle">Any image can be broken down into a set of sine waves, and conversely, any image can be created from summing a set of sine waves. This is called <b>Fourier analysis</b>. Keeping only the strongest spatial-frequency components gives us a coarse approximation of the original. Adding more components gives you a sharper representation.<br> Choose an image from the drop-down menu or upload your own. Then, use the slider to change the number of visible components.</p>
 </header>
 
 <div class="stack">
@@ -236,9 +236,9 @@ canvas{
     <div class="controlItem">
       <label class="controlLabel" for="imageSelect">Image</label>
       <select id="imageSelect">
-        <option value="face">Face</option>
-        <option value="house">House</option>
-        <option value="cat">Cat</option>
+        <option value="beyonce">Beyonce</option>
+        <option value="star">Star Shape</option>
+        <option value="psy280text">Text</option>
       </select>
     </div>
 
@@ -310,7 +310,7 @@ const imageSelect = document.getElementById("imageSelect");
 // FFT coefficients (at (x,y) and its Hermitian mirror (-x,-y)), since the
 // source image is real-valued. Counting them separately would let the
 // slider add a coefficient whose partner isn't there yet -- which either
-// does nothing visible (rescaling washes it out) or duplicates a pattern
+// does nothing visible (rescaling washes it out) or duplipsy280textes a pattern
 // already shown. countComponents() counts each such pair -- and each
 // self-mirrored (Nyquist) point -- as exactly one selectable component.
 function countComponents(w, h) {
@@ -363,16 +363,9 @@ let fftDC = null;
 let coeffs = [];
 
 const images = {
-  face: "images/beyonce.png",
-    // face:
-    //     "data:image/png;base64,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",
-
-    house:
-        "data:image/png;base64,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",
-
-    cat:
-        "data:image/png;base64,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"
-};
+  beyonce: "images/beyonce.png",
+  star:'images/star.png',
+  psy280text:'images/text.png'};
 
 loadImage(imageSelect.value);
 
