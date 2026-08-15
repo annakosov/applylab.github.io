@@ -65,9 +65,10 @@ h1{
   max-width:1150px;
   margin:0 auto;
   display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(510px, 1fr));
+  grid-template-columns:repeat(auto-fit, minmax(510px, 560px));
   gap:24px;
   align-items:start;
+  justify-content: center;
 }
 
 .resultWrap{
@@ -97,7 +98,7 @@ h1{
 }
 
 .cardTitle{
-  font-size:10px;
+  font-size:13px;
   letter-spacing:0.16em;
   text-transform:uppercase;
   color:var(--muted);
@@ -105,7 +106,7 @@ h1{
 }
 
 .cardHint{
-  font-size:11px;
+  font-size:13px;
   color:var(--muted-dim);
 }
 
@@ -146,7 +147,7 @@ canvas{
 }
 
 .patchTitle{
-  font-size:10px;
+  font-size:13px;
   letter-spacing:0.14em;
   text-transform:uppercase;
   color:var(--muted);
@@ -176,7 +177,7 @@ canvas{
 }
 
 button{
-  font-size:11px;
+  font-size:13px;
   letter-spacing:0.12em;
   text-transform:uppercase;
   color:var(--muted);
@@ -217,7 +218,7 @@ canvas:focus-visible{
 <header>
   <div class="eyebrow">Colour Vision · Reflectance</div>
   <h1>Reflectance × Illumination Demo</h1>
-  <p class="subtitle">Paint an illumination spectrum and a surface reflectance spectrum. The light that actually reaches the eye is their product, wavelength by wavelength — shown below as "Light from Surface".</p>
+  <p class="subtitle">Paint an illumination spectrum (I) and a surface reflectance spectrum (R). The light that reaches our eyes (L) is their product, wavelength by wavelength (L = I x R), shown underneath as "Light from Surface".</p>
 </header>
 
 <div class="wrap">
@@ -235,7 +236,7 @@ canvas:focus-visible{
 
     <div class="right">
       <div class="patchCol">
-        <div class="patchTitle">Predicted Color</div>
+        <div class="patchTitle">Predicted Colour</div>
         <div class="patchRing"><div id="patchIllum" class="patch"></div></div>
       </div>
       <button onclick="clearSpec('illum')">Clear</button>
@@ -258,7 +259,7 @@ canvas:focus-visible{
 
     <div class="right">
       <div class="patchCol">
-        <div class="patchTitle">Predicted Color</div>
+        <div class="patchTitle">Predicted Colour</div>
         <div class="patchRing"><div id="patchRefl" class="patch"></div></div>
       </div>
       <button onclick="clearSpec('refl')">Clear</button>
@@ -283,7 +284,7 @@ canvas:focus-visible{
 
     <div class="right">
       <div class="patchCol">
-        <div class="patchTitle">Predicted Color</div>
+        <div class="patchTitle">Predicted Colour</div>
         <div class="patchRing"><div id="patchResult" class="patch"></div></div>
       </div>
     </div>
