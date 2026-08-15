@@ -2,63 +2,211 @@
 <html>
 <head>
 <meta charset="utf-8">
-
 <title>Reflectance × Illumination Demo</title>
 
 <style>
 
+:root{
+  --bg:#0d0f14;
+  --bg-grad:#11141c;
+  --panel:#161922;
+  --panel-2:#12141b;
+  --border:#262b38;
+  --border-soft:#1e222c;
+  --text:#ffffff;
+  --muted:#aab0c0;
+  --muted-dim:#7d8293;
+  --accent:#6ee7d8;
+  --accent-dim:#3d7d76;
+}
+
+*{box-sizing:border-box;}
+
 body{
-font-family:sans-serif;
-font-size:16pt;
-margin:20px;
+  font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, var(--bg-grad), transparent),
+    var(--bg);
+  color:var(--text);
+  margin:0;
+  padding:32px 28px 56px;
 }
 
-.row{
-display:flex;
-gap:40px;
-margin-bottom:40px;
-justify-content:center;
-align-items:flex-start;
-flex-wrap:nowrap; /* prevent stacking */
+header{
+  max-width:1150px;
+  margin:0 auto 28px;
 }
 
-.panel{
-display:flex;
-flex-direction:column;
-align-items:center;
-flex:1;              /* share space evenly */
-min-width:300;         /* allows shrinking */
-max-width:750px;
+.eyebrow{
+  font-size:11px;
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  color:var(--accent);
+  margin-bottom:10px;
+  font-weight:600;
+}
+
+h1{
+  font-weight:700;
+  font-size:26px;
+  letter-spacing:-0.01em;
+  margin:0 0 8px;
+  color:var(--text);
+}
+
+.subtitle{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.55;
+  max-width:1150px;
+}
+
+.wrap{
+  max-width:1150px;
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(510px, 1fr));
+  gap:24px;
+  align-items:start;
+}
+
+.resultWrap{
+  max-width:1150px;
+  margin:24px auto 0;
+  display:flex;
+  justify-content:center;
+}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:18px 20px 20px;
+}
+
+.resultWrap .card{
+  width:100%;
+  max-width:560px;
+}
+
+.cardHead{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  margin-bottom:12px;
+}
+
+.cardTitle{
+  font-size:10px;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color:var(--muted);
+  font-weight:600;
+}
+
+.cardHint{
+  font-size:11px;
+  color:var(--muted-dim);
+}
+
+.demo{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+
+.canvasFrame{
+  width:100%;
+  height:300px;
+  border-radius:8px;
+  overflow:hidden;
+  border:1px solid var(--border-soft);
+  line-height:0;
 }
 
 canvas{
-border:1px solid #777;
-width:100%;      /* responsive width */
-height:280px;    /* fixed height */
+  display:block;
+  width:100%;
+  height:100%;
+  background:var(--panel-2);
+  cursor:crosshair;
+}
+
+.right{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:14px;
+}
+
+.patchCol{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+
+.patchTitle{
+  font-size:10px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:10px;
+  font-weight:600;
+  white-space:nowrap;
+}
+
+.patchRing{
+  width:92px;
+  height:92px;
+  border-radius:50%;
+  padding:7px;
+  background:radial-gradient(circle at 35% 30%, #232733, #14161d 70%);
+  border:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
 
 .patch{
-width:90px;
-height:90px;
-border-radius:50%;
-border:1px solid #777;
-margin-top:10px;
-background:black;
-}
-
-.title{
-font-weight:bold;
-margin-bottom:5px;
-}
-
-.half{
-flex:0 0 calc(50% - 20px); /* match one of the top panels */
-max-width:750px;
+  width:100%;
+  height:100%;
+  border-radius:50%;
+  background:#000;
+  transition:background-color 0.15s ease;
 }
 
 button{
-margin-top:10px;
-font-size:14pt;
+  font-size:11px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+  background:transparent;
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:7px 16px;
+  cursor:pointer;
+  transition:all 0.15s ease;
+}
+
+button:hover{
+  color:var(--accent);
+  border-color:var(--accent-dim);
+}
+
+button:focus-visible,
+canvas:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+
+@media (prefers-reduced-motion: reduce){
+  .patch{transition:none;}
+}
+
+@media (max-width:520px){
+  body{padding:24px 16px 48px;}
+  h1{font-size:22px;}
+  .card{padding:16px;}
 }
 
 </style>
@@ -66,32 +214,82 @@ font-size:14pt;
 
 <body>
 
-<div class="row">
+<header>
+  <div class="eyebrow">Colour Vision · Reflectance</div>
+  <h1>Reflectance × Illumination Demo</h1>
+  <p class="subtitle">Paint an illumination spectrum and a surface reflectance spectrum. The light that actually reaches the eye is their product, wavelength by wavelength — shown below as "Light from Surface".</p>
+</header>
 
-<div class="panel">
-<div class="title">Illumination Spectrum</div>
-<canvas id="illum"></canvas>
-<div id="patchIllum" class="patch"></div>
-<button onclick="clearSpec('illum')">Clear</button>
+<div class="wrap">
+
+<div class="card">
+  <div class="cardHead">
+    <span class="cardTitle">Illumination Spectrum</span>
+    <span class="cardHint">click + drag to paint</span>
+  </div>
+  <div class="demo">
+
+    <div class="canvasFrame">
+      <canvas id="illum"></canvas>
+    </div>
+
+    <div class="right">
+      <div class="patchCol">
+        <div class="patchTitle">Predicted Color</div>
+        <div class="patchRing"><div id="patchIllum" class="patch"></div></div>
+      </div>
+      <button onclick="clearSpec('illum')">Clear</button>
+    </div>
+
+  </div>
 </div>
 
-<div class="panel">
-<div class="title">Reflectance Spectrum</div>
-<canvas id="refl"></canvas>
-<div id="patchRefl" class="patch"></div>
-<button onclick="clearSpec('refl')">Clear</button>
+
+<div class="card">
+  <div class="cardHead">
+    <span class="cardTitle">Reflectance Spectrum</span>
+    <span class="cardHint">click + drag to paint</span>
+  </div>
+  <div class="demo">
+
+    <div class="canvasFrame">
+      <canvas id="refl"></canvas>
+    </div>
+
+    <div class="right">
+      <div class="patchCol">
+        <div class="patchTitle">Predicted Color</div>
+        <div class="patchRing"><div id="patchRefl" class="patch"></div></div>
+      </div>
+      <button onclick="clearSpec('refl')">Clear</button>
+    </div>
+
+  </div>
 </div>
 
 </div>
 
-<div class="row">
+<div class="resultWrap">
+<div class="card">
+  <div class="cardHead">
+    <span class="cardTitle">Light From Surface</span>
+    <span class="cardHint">computed automatically</span>
+  </div>
+  <div class="demo">
 
-<div class="panel half">
-<div class="title">Light from Surface</div>
-<canvas id="result"></canvas>
-<div id="patchResult" class="patch"></div>
+    <div class="canvasFrame">
+      <canvas id="result"></canvas>
+    </div>
+
+    <div class="right">
+      <div class="patchCol">
+        <div class="patchTitle">Predicted Color</div>
+        <div class="patchRing"><div id="patchResult" class="patch"></div></div>
+      </div>
+    </div>
+
+  </div>
 </div>
-
 </div>
 
 <script>
@@ -101,8 +299,8 @@ const wlMax=700;
 
 let width, height, N;
 
-const leftMargin=70;
-const bottomMargin=55;
+const leftMargin=64;
+const bottomMargin=76;
 
 let wl=[];
 let illumination=[];
@@ -128,8 +326,12 @@ document.addEventListener("mouseup",()=>mouseDown=false);
 
 function resizeCanvas(canvas){
 let rect = canvas.getBoundingClientRect();
-canvas.width = rect.width;
-canvas.height = rect.height;
+let dpr = window.devicePixelRatio || 1;
+canvas.width = Math.round(rect.width*dpr);
+canvas.height = Math.round(rect.height*dpr);
+canvas._cssW = rect.width;
+canvas._cssH = rect.height;
+canvas._dpr = dpr;
 }
 
 function gauss(x,m,s){
@@ -178,28 +380,38 @@ return [R,G,B];
 
 function drawAxes(c,ylabel,w,h,localN){
 
-c.strokeStyle="black";
+let plotBottom = h - bottomMargin;
 
+c.strokeStyle="rgba(110,231,216,0.55)";
+c.lineWidth=1;
 c.beginPath();
-c.moveTo(leftMargin,h-bottomMargin);
-c.lineTo(w,h-bottomMargin);
+c.moveTo(leftMargin,plotBottom);
+c.lineTo(leftMargin+localN,plotBottom);
 c.stroke();
 
-c.font="14pt sans-serif";
+c.font="700 17px -apple-system, sans-serif";
+c.fillStyle="#c7cbd6";
 c.textAlign="center";
+c.textBaseline="alphabetic";
 
 for(let wv=400;wv<=700;wv+=50){
 
 let x = leftMargin + (wv-wlMin)/(wlMax-wlMin)*localN;
-c.fillText(wv,x,h-bottomMargin+20);
+c.fillText(wv,Math.round(x)+0.5,plotBottom+26);
 
 }
 
-c.fillText("Wavelength (nm)",leftMargin+localN/2,h-5);
+c.fillStyle="#aab0c0";
+c.font="700 14px -apple-system, sans-serif";
+c.fillText("WAVELENGTH (nm)",Math.round(leftMargin+localN/2)+0.5,h-10);
 
 c.save();
-c.translate(25,h/2);
+c.translate(20,plotBottom/2);
 c.rotate(-Math.PI/2);
+c.textAlign="center";
+c.textBaseline="alphabetic";
+c.font="700 14px -apple-system, sans-serif";
+c.fillStyle="#aab0c0";
 c.fillText(ylabel,0,0);
 c.restore();
 }
@@ -209,24 +421,55 @@ function drawSpectrum(type,array,ylabel){
 let c = ctx[type];
 let canvas = canvases[type];
 
-let w = canvas.width;
-let h = canvas.height;
+let w = canvas._cssW;
+let h = canvas._cssH;
+let dpr = canvas._dpr || 1;
+
+// logical (CSS-pixel) drawing space -- kept independent of device pixel ratio
+c.setTransform(dpr,0,0,dpr,0,0);
 
 let localN = w - leftMargin;
+let plotBottom = h - bottomMargin;
 
 c.clearRect(0,0,w,h);
+
+// dark instrument background for the plot area
+c.fillStyle="#12141b";
+c.fillRect(leftMargin,0,localN,plotBottom);
+
+// faint horizontal gridlines at 25/50/75/100%
+c.strokeStyle="rgba(255,255,255,0.07)";
+c.lineWidth=1;
+for(let g=0;g<=4;g++){
+let gy=plotBottom*(1-g/4);
+c.beginPath();
+c.moveTo(leftMargin,gy);
+c.lineTo(leftMargin+localN,gy);
+c.stroke();
+}
+
+// faint vertical gridlines every 50nm
+for(let wv=400;wv<=700;wv+=50){
+let gx = leftMargin + (wv-wlMin)/(wlMax-wlMin)*localN;
+c.beginPath();
+c.moveTo(gx,0);
+c.lineTo(gx,plotBottom);
+c.stroke();
+}
 
 for(let i=0;i<localN;i++){
 
 let idx = Math.floor(i * (N-1) / (localN-1)); // map to data
 
 let val = array[idx];
-let y = (h-bottomMargin)*(1-val);
+if(val<=0) continue;
+
+let y = plotBottom*(1-val);
 
 let rgb = wavelengthToRGB(wl[idx]);
 
 c.fillStyle = `rgb(${rgb[0]*255},${rgb[1]*255},${rgb[2]*255})`;
-c.fillRect(i+leftMargin,y,1,(h-bottomMargin)-y);
+c.fillRect(i+leftMargin,y,1,plotBottom-y);
 }
 
 drawAxes(c,ylabel,w,h,localN);
@@ -277,7 +520,7 @@ function computeProduct(){
 for(let i=0;i<N;i++)
 result[i]=illumination[i]*reflectance[i];
 
-drawSpectrum("result",result,"# of photons");
+drawSpectrum("result",result,"# PHOTONS");
 
 updateColorPatch(illumination,"patchIllum");
 updateColorPatch(reflectance,"patchRefl");
@@ -285,8 +528,8 @@ updateColorPatch(result,"patchResult");
 }
 
 function redraw(){
-drawSpectrum("illum",illumination,"# of photons");
-drawSpectrum("refl",reflectance,"% photons reflected");
+drawSpectrum("illum",illumination,"# PHOTONS");
+drawSpectrum("refl",reflectance,"% REFLECTED");
 computeProduct();
 }
 
@@ -309,14 +552,15 @@ let rect = canvas.getBoundingClientRect();
 let canvasX = (e.clientX - rect.left) - leftMargin;
 let canvasY = e.clientY - rect.top;
 
-let localN = canvas.width - leftMargin;
+let localN = canvas._cssW - leftMargin;
+let plotBottom = canvas._cssH - bottomMargin;
 
 if(canvasX < 0 || canvasX >= localN) return;
 
 /* map pixel → data index */
 let x = Math.floor(canvasX * (N-1) / (localN-1));
 
-let val = 1 - canvasY/(canvas.height - bottomMargin);
+let val = 1 - canvasY/plotBottom;
 val = Math.max(0, Math.min(1, val));
 
 if(lastX !== null){
@@ -354,9 +598,9 @@ for(let key in canvases){
 resizeCanvas(canvases[key]);
 }
 
-/* update dimensions */
-width = canvases.illum.width;
-height = canvases.illum.height;
+/* update dimensions (logical CSS space) */
+width = canvases.illum._cssW;
+height = canvases.illum._cssH;
 
 N = Math.floor(width - leftMargin);
 
