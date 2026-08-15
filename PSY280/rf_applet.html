@@ -5,83 +5,303 @@
 <title>Receptive Field Demo</title>
 
 <style>
-body {
-  font-family: sans-serif;
-  margin: 20px;
+
+:root{
+  --bg:#0d0f14;
+  --bg-grad:#11141c;
+  --panel:#161922;
+  --panel-2:#12141b;
+  --border:#262b38;
+  --border-soft:#1e222c;
+  --text:#ffffff;
+  --muted:#aab0c0;
+  --muted-dim:#7d8293;
+  --accent:#6ee7d8;
+  --accent-dim:#3d7d76;
+  color-scheme:dark;
 }
 
-.controls {
-  margin-bottom: 15px;
+*{box-sizing:border-box;}
+
+body{
+  font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, var(--bg-grad), transparent),
+    var(--bg);
+  color:var(--text);
+  margin:0;
+  padding:32px 28px 56px;
 }
 
-canvas {
-  border: 1px solid black;
-  display: block;
-  margin-bottom: 15px;
+header{
+  max-width:460px;
+  margin:0 auto 28px;
 }
+
+.eyebrow{
+  font-size:11px;
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  color:var(--accent);
+  margin-bottom:10px;
+  font-weight:600;
+}
+
+h1{
+  font-weight:700;
+  font-size:26px;
+  letter-spacing:-0.01em;
+  margin:0 0 8px;
+  color:var(--text);
+}
+
+.subtitle{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.55;
+}
+
+.stack{
+  max-width:460px;
+  margin:0 auto;
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:18px 20px 20px;
+}
+
+.cardHead{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  margin-bottom:12px;
+}
+
+.cardTitle{
+  font-size:10px;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color:var(--muted);
+  font-weight:600;
+}
+
+.cardHint{
+  font-size:11px;
+  color:var(--muted-dim);
+}
+
+.canvasFrame{
+  width:100%;
+  border-radius:8px;
+  overflow:hidden;
+  border:1px solid var(--border-soft);
+  line-height:0;
+}
+
+canvas{
+  display:block;
+  width:100%;
+  height:auto;
+  background:var(--panel-2);
+}
+
+#stimCanvas{
+  cursor:crosshair;
+}
+
+.controlsGrid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px 20px;
+}
+
+.controlItem{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+}
+
+.controlLabel{
+  font-size:10px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+  font-weight:600;
+}
+
+.controlLabel .val{
+  color:var(--accent);
+  text-transform:none;
+  letter-spacing:0;
+  font-weight:700;
+  font-size:11px;
+}
+
+select{
+  width:100%;
+  font-family:inherit;
+  font-size:13px;
+  color:var(--text);
+  background:var(--panel-2);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:8px 10px;
+}
+
+select:focus-visible,
+input[type="range"]:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+
+input[type="range"]{
+  width:100%;
+  accent-color:var(--accent);
+}
+
+@media (max-width:520px){
+  body{padding:24px 16px 48px;}
+  h1{font-size:22px;}
+  .card{padding:16px;}
+  .controlsGrid{grid-template-columns:1fr;}
+}
+
 </style>
 </head>
 
 <body>
 
-<h2>Receptive Field Demo</h2>
+<header>
+  <div class="eyebrow">Vision Science · Receptive Fields</div>
+  <h1>Receptive Field Demo</h1>
+  <p class="subtitle">Move your mouse to present a stimulus over a simulated receptive field. The response rate it drives is shown as a spike train below.</p>
+</header>
 
-<div class="controls">
-  Receptive Field:
-  <select id="rfType">
-    <option value="onCenter">On-center / Off-surround</option>
-    <option value="offCenter">Off-center / On-surround</option>
-    <option value="simple">Simple Cell (bar)</option>
-  </select>
+<div class="stack">
 
-  Stimulus:
-  <select id="stimType">
-    <option value="spot">Spot</option>
-    <option value="bar">Bar</option>
-  </select>
+<div class="card">
+  <div class="cardHead">
+    <span class="cardTitle">Controls</span>
+  </div>
+  <div class="controlsGrid">
 
-  Size:
-  <input type="range" id="sizeSlider" min="5" max="100" value="30">
+    <div class="controlItem">
+      <label class="controlLabel" for="rfType">Receptive Field</label>
+      <select id="rfType">
+        <option value="onCenter">On-center / Off-surround</option>
+        <option value="offCenter">Off-center / On-surround</option>
+        <option value="simple">Simple Cell (bar)</option>
+      </select>
+    </div>
 
-  Orientation:
-  <input type="range" id="angleSlider" min="0" max="180" value="0">
+    <div class="controlItem">
+      <label class="controlLabel" for="stimType">Stimulus</label>
+      <select id="stimType">
+        <option value="spot">Spot</option>
+        <option value="bar">Bar</option>
+      </select>
+    </div>
+
+    <div class="controlItem">
+      <label class="controlLabel" for="sizeSlider">Size <span class="val" id="sizeVal">30</span>px</label>
+      <input type="range" id="sizeSlider" min="5" max="100" value="30">
+    </div>
+
+    <div class="controlItem">
+      <label class="controlLabel" for="angleSlider">Orientation <span class="val" id="angleVal">0</span>°</label>
+      <input type="range" id="angleSlider" min="0" max="180" value="0">
+    </div>
+
+  </div>
 </div>
 
-<canvas id="stimCanvas" width="400" height="400"></canvas>
-<canvas id="spikeCanvas" width="400" height="120"></canvas>
+<div class="card">
+  <div class="cardHead">
+    <span class="cardTitle">Stimulus Field</span>
+    <span class="cardHint">move mouse to position</span>
+  </div>
+  <div class="canvasFrame">
+    <canvas id="stimCanvas" width="400" height="400"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <div class="cardHead">
+    <span class="cardTitle">Spike Train</span>
+    <span class="cardHint">simulated response</span>
+  </div>
+  <div class="canvasFrame">
+    <canvas id="spikeCanvas" width="400" height="120"></canvas>
+  </div>
+</div>
+
+</div>
 
 <script>
+
+// fixed orientation of the simple-cell receptive field (horizontal),
+// independent of the stimulus bar's own orientation slider
+const RF_ORIENTATION = 0;
+
+const STIM_SIZE = 400;
+const SPIKE_W = 400;
+const SPIKE_H = 120;
+
 const stimCanvas = document.getElementById("stimCanvas");
 const stimCtx = stimCanvas.getContext("2d");
 
 const spikeCanvas = document.getElementById("spikeCanvas");
 const spikeCtx = spikeCanvas.getContext("2d");
 
+function setupHiDPI(canvas, ctx, w, h){
+let dpr = window.devicePixelRatio || 1;
+canvas.width = w*dpr;
+canvas.height = h*dpr;
+ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+setupHiDPI(stimCanvas, stimCtx, STIM_SIZE, STIM_SIZE);
+setupHiDPI(spikeCanvas, spikeCtx, SPIKE_W, SPIKE_H);
+
 let mouse = {x: 200, y: 200};
 let spikes = [];
+
+// live readouts for the sliders
+const sizeSlider = document.getElementById("sizeSlider");
+const angleSlider = document.getElementById("angleSlider");
+const sizeVal = document.getElementById("sizeVal");
+const angleVal = document.getElementById("angleVal");
+
+sizeSlider.addEventListener("input", () => sizeVal.textContent = sizeSlider.value);
+angleSlider.addEventListener("input", () => angleVal.textContent = angleSlider.value);
 
 // Mouse control
 stimCanvas.addEventListener("mousemove", e => {
   const rect = stimCanvas.getBoundingClientRect();
 
-  const scaleX = stimCanvas.width / rect.width;
-  const scaleY = stimCanvas.height / rect.height;
+  const scaleX = STIM_SIZE / rect.width;
+  const scaleY = STIM_SIZE / rect.height;
 
   mouse.x = (e.clientX - rect.left) * scaleX;
   mouse.y = (e.clientY - rect.top) * scaleY;
 });
+
 // Draw stimulus
 function drawStimulus() {
-  // Clear + BLACK background
-  stimCtx.fillStyle = "black";
-  stimCtx.fillRect(0, 0, 400, 400);
-  const rfAngle = 0; // fixed RF orientation (horizontal)
+  // Clear + dark instrument background
+  stimCtx.fillStyle = "#12141b";
+  stimCtx.fillRect(0, 0, STIM_SIZE, STIM_SIZE);
 
   const stimType = document.getElementById("stimType").value;
   const size = parseInt(document.getElementById("sizeSlider").value);
   const angle = document.getElementById("angleSlider").value * Math.PI/180;
 
-  stimCtx.rotate(rfAngle);
   stimCtx.fillStyle = "white";
 
   if (stimType === "spot") {
@@ -109,13 +329,8 @@ function computeResponse(rfType, cx, cy, mouse) {
     let centerSum = 0;
     let surroundSum = 0;
 
-    let centerCount = 0;
-    let surroundCount = 0;
-
-
     let centerMax = 0;
     let surroundMax = 0;
-
 
     const samples = 300;
 
@@ -146,18 +361,17 @@ function computeResponse(rfType, cx, cy, mouse) {
 
       if (center > 0) {
         centerSum += center * stim;
-        centerMax += center;   // ← key change
+        centerMax += center;
       }
 
       if (surround > 0) {
         surroundSum += surround * stim;
-        surroundMax += surround; // ← key change
+        surroundMax += surround;
       }
 
     }
 
-    // surroundCount = surroundCount*.55
-    //  --- normalize each region independently ---
+    // --- normalize each region independently ---
     let centerNorm = 0;
     let surroundNorm = 0;
 
@@ -186,7 +400,6 @@ function computeResponse(rfType, cx, cy, mouse) {
     const gainI = 15;
 
     response = baseline + gainE * excitation - gainI * inhibition;
-    console.log(response)
   }
 
   // --- SIMPLE CELL ---
@@ -195,8 +408,7 @@ function computeResponse(rfType, cx, cy, mouse) {
     const dx = mouse.x - cx;
     const dy = mouse.y - cy;
 
-    const rfAngle = 0; // RF fixed
-    const proj = dx * Math.cos(rfAngle) + dy * Math.sin(rfAngle);
+    const proj = dx * Math.cos(RF_ORIENTATION) + dy * Math.sin(RF_ORIENTATION);
 
     const envelope = Math.exp(-(dx*dx + dy*dy) / 3000);
     const grating = Math.cos(proj / 12);
@@ -210,8 +422,6 @@ function computeResponse(rfType, cx, cy, mouse) {
   // --- clamp ---
   return Math.max(0, response);
 }
-
-
 
 // Generate spikes (Poisson-like)
 function updateSpikes(rate) {
@@ -227,38 +437,33 @@ function updateSpikes(rate) {
   // Move spikes across screen
   spikes = spikes
     .map(s => s + 2)
-    .filter(s => s < 400);
+    .filter(s => s < SPIKE_W);
 }
+
 // Draw spike train
 function drawSpikes() {
-  spikeCtx.clearRect(0, 0, 400, 120);
+  spikeCtx.clearRect(0, 0, SPIKE_W, SPIKE_H);
 
-  spikeCtx.strokeStyle = "black";
+  spikeCtx.fillStyle = "#12141b";
+  spikeCtx.fillRect(0, 0, SPIKE_W, SPIKE_H);
+
+  spikeCtx.strokeStyle = "#6ee7d8";
+  spikeCtx.lineWidth = 2;
 
   spikes.forEach(s => {
     spikeCtx.beginPath();
-    spikeCtx.moveTo(400 - s, 0);
-    spikeCtx.lineTo(400 - s, 120);
+    spikeCtx.moveTo(SPIKE_W - s, 0);
+    spikeCtx.lineTo(SPIKE_W - s, SPIKE_H);
     spikeCtx.stroke();
   });
 }
 
 function drawReceptiveField(rfType,cx,cy) {
-  // const rfType = document.getElementById("rfType").value;
-  // console.log(rfType)
-  // const cx = 200;
-  // const cy = 200;
 
   stimCtx.lineWidth = 2;
   stimCtx.font = "16px sans-serif";
   stimCtx.textAlign = "center";
   stimCtx.textBaseline = "middle";
-
-
-  // stimCtx.fillStyle = "cyan";
-  // stimCtx.beginPath();
-  // stimCtx.arc(cx, cy, 5, 0, Math.PI * 2);
-  // stimCtx.fill();
 
   if (rfType === "onCenter" || rfType === "offCenter") {
 
@@ -290,11 +495,10 @@ function drawReceptiveField(rfType,cx,cy) {
   }
 
   if (rfType === "simple") {
-    const angle = document.getElementById("angleSlider").value * Math.PI/180;
 
     stimCtx.save();
     stimCtx.translate(cx, cy);
-    stimCtx.rotate(rfAngle);
+    stimCtx.rotate(RF_ORIENTATION);
 
     // Left OFF region
     stimCtx.fillStyle = "rgba(255,0,0,0.3)";
@@ -318,6 +522,7 @@ function drawReceptiveField(rfType,cx,cy) {
     stimCtx.restore();
   }
 }
+
 function isInsideStimulus(x, y) {
   const stimType = document.getElementById("stimType").value;
   const size = parseInt(document.getElementById("sizeSlider").value);
@@ -340,13 +545,15 @@ function isInsideStimulus(x, y) {
 
   return false;
 }
+
 function loop() {
 
   const rfType = document.getElementById("rfType").value;
-  const cx = stimCanvas.width / 2;
-  const cy = stimCanvas.height / 2;
+  const cx = STIM_SIZE / 2;
+  const cy = STIM_SIZE / 2;
+
   drawStimulus();
-  drawReceptiveField(rfType,cx,cy); // ← REQUIRED
+  drawReceptiveField(rfType,cx,cy);
 
   const rate = computeResponse(rfType,cx,cy,mouse);
   updateSpikes(rate);
@@ -356,6 +563,7 @@ function loop() {
 }
 
 loop();
+
 </script>
 
 </body>
