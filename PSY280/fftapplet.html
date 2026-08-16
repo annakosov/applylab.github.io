@@ -86,7 +86,7 @@ h1{
 
 .cardTitle{
   font-size:12px;
-  letter-spacing:0.16em;
+  /* letter-spacing:0.16em; */
   text-transform:uppercase;
   color:var(--muted);
   font-weight:600;
@@ -184,11 +184,16 @@ input[type="range"]{
 }
 
 .canvasGrid{
-  display:grid;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
   align-items:start;
-  justify-content: center;
-  grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
   gap:24px;
+}
+
+.canvasGrid > .card{
+  flex:1 1 220px;
+  max-width:340px;
 }
 
 .canvasFrame{
@@ -236,7 +241,7 @@ canvas{
     <div class="controlItem">
       <label class="controlLabel" for="imageSelect">Image</label>
       <select id="imageSelect">
-        <option value="beyonce">Beyonce</option>
+        <option value="beyonce">Beyoncé</option>
         <option value="star">Star Shape</option>
         <option value="psy280text">Text</option>
       </select>
@@ -407,6 +412,12 @@ function loadImageSrc(src) {
         const gray = imageToGray(imageData);
 
         computeFFT(gray);
+
+        // any newly loaded image (dropdown selection or upload) starts
+        // fresh at a single component, rather than keeping whatever
+        // count was set for the previous image
+        slider.value = nToSlider(1);
+        label.textContent = sliderToN(parseInt(slider.value));
 
         reconstruct(sliderToN(parseInt(slider.value)));
     };
