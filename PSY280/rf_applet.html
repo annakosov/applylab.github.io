@@ -34,7 +34,7 @@ body{
 }
 
 header{
-  max-width:460px;
+  max-width:720px;
   margin:0 auto 28px;
 }
 
@@ -61,12 +61,24 @@ h1{
   line-height:1.55;
 }
 
-.stack{
-  max-width:460px;
+.layout{
+  max-width:720px;
   margin:0 auto;
+  display:flex;
+  gap:20px;
+  align-items:flex-start;
+}
+
+.leftCol{
+  flex:0 0 260px;
   display:flex;
   flex-direction:column;
   gap:20px;
+}
+
+.rightCol{
+  flex:1 1 380px;
+  min-width:280px;
 }
 
 .card{
@@ -117,8 +129,8 @@ canvas{
 
 .controlsGrid{
   display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:16px 20px;
+  grid-template-columns:1fr;
+  gap:14px;
 }
 
 .controlItem{
@@ -165,11 +177,13 @@ input[type="range"]{
   accent-color:var(--accent);
 }
 
-@media (max-width:520px){
+@media (max-width:640px){
   body{padding:24px 16px 48px;}
   h1{font-size:22px;}
   .card{padding:16px;}
-  .controlsGrid{grid-template-columns:1fr;}
+  .layout{flex-direction:column;}
+  .leftCol{flex:1 1 auto;width:100%;}
+  .rightCol{flex:1 1 auto;width:100%;min-width:0;}
 }
 
 </style>
@@ -183,7 +197,9 @@ input[type="range"]{
   <p class="subtitle">Move your mouse to present a stimulus over a simulated receptive field. The response rate it drives is shown as a spike train below.</p>
 </header>
 
-<div class="stack">
+<div class="layout">
+
+<div class="leftCol">
 
 <div class="card">
   <div class="cardHead">
@@ -203,14 +219,18 @@ input[type="range"]{
     <div class="controlItem">
       <label class="controlLabel" for="stimType">Stimulus</label>
       <select id="stimType">
-        <option value="spot">Spot</option>
-        <option value="bar">Bar</option>
+        <option value="spotWhite">Spot (white)</option>
+        <option value="spotBlack">Spot (black)</option>
+        <option value="barWhite">Bar (white)</option>
+        <option value="barBlack">Bar (black)</option>
+        <option value="ringWhite">Ring (white)</option>
+        <option value="ringBlack">Ring (black)</option>
       </select>
     </div>
 
     <div class="controlItem">
-      <label class="controlLabel" for="sizeSlider">Size <span class="val" id="sizeVal">30</span>px</label>
-      <input type="range" id="sizeSlider" min="5" max="100" value="30">
+      <label class="controlLabel" for="sizeSlider">Size <span class="val" id="sizeVal">90</span>px</label>
+      <input type="range" id="sizeSlider" min="30" max="200" value="90">
     </div>
 
     <div class="controlItem">
@@ -218,16 +238,6 @@ input[type="range"]{
       <input type="range" id="angleSlider" min="0" max="180" value="0">
     </div>
 
-  </div>
-</div>
-
-<div class="card">
-  <div class="cardHead">
-    <span class="cardTitle">Stimulus Field</span>
-    <span class="cardHint">move mouse to position</span>
-  </div>
-  <div class="canvasFrame">
-    <canvas id="stimCanvas" width="400" height="400"></canvas>
   </div>
 </div>
 
@@ -243,15 +253,40 @@ input[type="range"]{
 
 </div>
 
+<div class="rightCol">
+
+<div class="card">
+  <div class="cardHead">
+    <span class="cardTitle">Stimulus Field</span>
+    <span class="cardHint">move mouse to position</span>
+  </div>
+  <div class="canvasFrame">
+    <canvas id="stimCanvas" width="400" height="400"></canvas>
+  </div>
+</div>
+
+</div>
+
+</div>
+
 <script>
 
-// fixed orientation of the simple-cell receptive field (horizontal),
-// independent of the stimulus bar's own orientation slider
-const RF_ORIENTATION = 0;
+// orientation preference of the simple-cell receptive field (radians);
+// randomized fresh each time "Simple Cell" is selected, see below
+let RF_ORIENTATION = 0;
 
 const STIM_SIZE = 400;
 const SPIKE_W = 400;
 const SPIKE_H = 120;
+
+// half-height of the bar stimulus -- shared by drawStimulus (drawing) and
+// isInsideStimulus (hit-testing) so the two always agree on the bar's extent
+const BAR_HALF_HEIGHT = 20;
+
+// ring stimulus's inner radius as a fraction of its outer radius (the
+// Size slider) -- shared by drawStimulus and isInsideStimulus so they
+// always agree on the ring's thickness
+const RING_INNER_RATIO = 0.6;
 
 const stimCanvas = document.getElementById("stimCanvas");
 const stimCtx = stimCanvas.getContext("2d");
@@ -281,6 +316,20 @@ const angleVal = document.getElementById("angleVal");
 sizeSlider.addEventListener("input", () => sizeVal.textContent = sizeSlider.value);
 angleSlider.addEventListener("input", () => angleVal.textContent = angleSlider.value);
 
+// give the simple cell a fresh, random orientation preference every time
+// it's chosen, rather than always defaulting to the same axis
+const rfTypeSelect = document.getElementById("rfType");
+
+function randomizeRFOrientation() {
+  RF_ORIENTATION = Math.random() * Math.PI; // a grating's orientation repeats every 180°
+}
+
+rfTypeSelect.addEventListener("change", () => {
+  if (rfTypeSelect.value === "simple") {
+    randomizeRFOrientation();
+  }
+});
+
 // Mouse control
 stimCanvas.addEventListener("mousemove", e => {
   const rect = stimCanvas.getBoundingClientRect();
@@ -294,27 +343,41 @@ stimCanvas.addEventListener("mousemove", e => {
 
 // Draw stimulus
 function drawStimulus() {
-  // Clear + dark instrument background
-  stimCtx.fillStyle = "#12141b";
+  // Neutral grey field -- gives white and black stimuli equal, symmetric
+  // contrast to work with, above and below the field's own luminance
+  stimCtx.fillStyle = "#808080";
   stimCtx.fillRect(0, 0, STIM_SIZE, STIM_SIZE);
 
   const stimType = document.getElementById("stimType").value;
+  const isBar = stimType.startsWith("bar");
+  const isRing = stimType.startsWith("ring");
+  const isSpot = stimType.startsWith("spot");
+  const isWhite = stimType.endsWith("White");
+
   const size = parseInt(document.getElementById("sizeSlider").value);
   const angle = document.getElementById("angleSlider").value * Math.PI/180;
 
-  stimCtx.fillStyle = "white";
+  stimCtx.fillStyle = isWhite ? "white" : "black";
 
-  if (stimType === "spot") {
+  if (isSpot) {
     stimCtx.beginPath();
     stimCtx.arc(mouse.x, mouse.y, size, 0, Math.PI * 2);
     stimCtx.fill();
   }
 
-  if (stimType === "bar") {
+  if (isRing) {
+    const inner = size * RING_INNER_RATIO;
+    stimCtx.beginPath();
+    stimCtx.arc(mouse.x, mouse.y, size, 0, Math.PI * 2);
+    stimCtx.arc(mouse.x, mouse.y, inner, 0, Math.PI * 2, true);
+    stimCtx.fill("evenodd");
+  }
+
+  if (isBar) {
     stimCtx.save();
     stimCtx.translate(mouse.x, mouse.y);
     stimCtx.rotate(angle);
-    stimCtx.fillRect(-size, -6, size * 2, 12);
+    stimCtx.fillRect(-size, -BAR_HALF_HEIGHT, size * 2, BAR_HALF_HEIGHT * 2);
     stimCtx.restore();
   }
 }
@@ -357,7 +420,7 @@ function computeResponse(rfType, cx, cy, mouse) {
         surround = Math.exp(-dist2 / 3000);
       }
 
-      const stim = isInsideStimulus(x, y) ? 1 : 0;
+      const stim = isInsideStimulus(x, y);
 
       if (center > 0) {
         centerSum += center * stim;
@@ -395,7 +458,7 @@ function computeResponse(rfType, cx, cy, mouse) {
     }
 
     // --- balanced response ---
-    const baseline = 5;
+    const baseline = 3;
     const gainE = 15;
     const gainI = 15;
 
@@ -408,15 +471,34 @@ function computeResponse(rfType, cx, cy, mouse) {
     const dx = mouse.x - cx;
     const dy = mouse.y - cy;
 
+    // decompose into position along the grating's oscillation axis vs.
+    // across it (parallel to the bar/stripe direction)
     const proj = dx * Math.cos(RF_ORIENTATION) + dy * Math.sin(RF_ORIENTATION);
+    const perp = -dx * Math.sin(RF_ORIENTATION) + dy * Math.cos(RF_ORIENTATION);
 
-    const envelope = Math.exp(-(dx*dx + dy*dy) / 3000);
+    // elongated (anisotropic) Gabor envelope: the grating oscillates along
+    // "proj", so the envelope must be NARROW along proj (or you'd see many
+    // repeated cycles instead of one clean bar) and WIDE along "perp" --
+    // that's the direction parallel to the bar itself, which is what makes
+    // the RF a long, narrow bar detector rather than a circular blob
+    const sigmaAcrossGrating = 18;
+    const sigmaAlongBar = 80;
+
+    const envelope = Math.exp(
+      -(proj*proj) / (2*sigmaAcrossGrating*sigmaAcrossGrating)
+      -(perp*perp) / (2*sigmaAlongBar*sigmaAlongBar)
+    );
+
     const grating = Math.cos(proj / 12);
 
-    const gain = 12;
-    const baseline = 0.5;
+    // a black stimulus inverts which subregions it excites vs. suppresses
+    const stimType = document.getElementById("stimType").value;
+    const contrastSign = stimType.endsWith("White") ? 1 : -1;
 
-    response = baseline + gain * envelope * grating;
+    const gain = 15;
+    const baseline = 1;
+
+    response = baseline + gain * envelope * grating * contrastSign;
   }
 
   // --- clamp ---
@@ -500,24 +582,30 @@ function drawReceptiveField(rfType,cx,cy) {
     stimCtx.translate(cx, cy);
     stimCtx.rotate(RF_ORIENTATION);
 
-    // Left OFF region
-    stimCtx.fillStyle = "rgba(255,0,0,0.3)";
-    stimCtx.fillRect(-90, -40, 60, 80);
+    // narrow along the grating's oscillation axis (x, locally), long
+    // along the bar's own axis (y, locally) -- matches the anisotropic
+    // envelope in computeResponse
+    const bandWidth = 44;
+    const bandHeight = 170;
+    const halfH = bandHeight / 2;
 
-    // Center ON region
-    stimCtx.fillStyle = "rgba(0,255,0,0.3)";
-    stimCtx.fillRect(-30, -40, 60, 80);
-
-    // Right OFF region
-    stimCtx.fillStyle = "rgba(255,0,0,0.3)";
-    stimCtx.fillRect(30, -40, 60, 80);
-
-    // Labels
+    stimCtx.lineWidth = 2;
     stimCtx.fillStyle = "white";
 
-    stimCtx.fillText("-", -60, 0);
+    // Left OFF region (outline only)
+    stimCtx.strokeStyle = "red";
+    stimCtx.strokeRect(-1.5*bandWidth, -halfH, bandWidth, bandHeight);
+    stimCtx.fillText("-", -bandWidth, 0);
+
+    // Center ON region (outline only)
+    stimCtx.strokeStyle = "lime";
+    stimCtx.strokeRect(-0.5*bandWidth, -halfH, bandWidth, bandHeight);
     stimCtx.fillText("+", 0, 0);
-    stimCtx.fillText("-", 60, 0);
+
+    // Right OFF region (outline only)
+    stimCtx.strokeStyle = "red";
+    stimCtx.strokeRect(0.5*bandWidth, -halfH, bandWidth, bandHeight);
+    stimCtx.fillText("-", bandWidth, 0);
 
     stimCtx.restore();
   }
@@ -525,25 +613,33 @@ function drawReceptiveField(rfType,cx,cy) {
 
 function isInsideStimulus(x, y) {
   const stimType = document.getElementById("stimType").value;
+  const isBar = stimType.startsWith("bar");
+  const isRing = stimType.startsWith("ring");
+  const contrastSign = stimType.endsWith("White") ? 1 : -1;
+
   const size = parseInt(document.getElementById("sizeSlider").value);
   const angle = document.getElementById("angleSlider").value * Math.PI/180;
 
   const dx = x - mouse.x;
   const dy = y - mouse.y;
+  const dist2 = dx*dx + dy*dy;
 
-  if (stimType === "spot") {
-    return (dx*dx + dy*dy) <= size*size;
-  }
+  let inside = false;
 
-  if (stimType === "bar") {
+  if (isRing) {
+    const inner = size * RING_INNER_RATIO;
+    inside = dist2 <= size*size && dist2 >= inner*inner;
+  } else if (isBar) {
     // rotate point into bar coordinates
     const xr = dx * Math.cos(-angle) - dy * Math.sin(-angle);
     const yr = dx * Math.sin(-angle) + dy * Math.cos(-angle);
 
-    return Math.abs(xr) < size && Math.abs(yr) < 6;
+    inside = Math.abs(xr) < size && Math.abs(yr) < BAR_HALF_HEIGHT;
+  } else {
+    inside = dist2 <= size*size;
   }
 
-  return false;
+  return inside ? contrastSign : 0;
 }
 
 function loop() {
