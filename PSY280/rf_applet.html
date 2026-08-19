@@ -275,18 +275,35 @@ input[type="range"]{
 // randomized fresh each time "Simple Cell" is selected, see below
 let RF_ORIENTATION = 0;
 
+// shape of the simple cell's Gabor receptive field. GABOR_SIGMA_ACROSS and
+// GABOR_DIVISOR (which sets the grating's wavelength, 2*pi*GABOR_DIVISOR)
+// are chosen together so the ON and OFF lobes have comparable weight -- if
+// the envelope is much narrower than the grating's wavelength, the OFF
+// flanks barely register and the kernel ends up net-positive, so a
+// stimulus covering the *entire* RF would score as excitatory instead of
+// properly cancelling out. GABOR_SIGMA_ALONG is larger than
+// GABOR_SIGMA_ACROSS, elongating the RF along its own orientation like a
+// real bar detector.
+const GABOR_SIGMA_ACROSS = 52;
+const GABOR_SIGMA_ALONG = 65;
+const GABOR_DIVISOR = 12;
+
 const STIM_SIZE = 400;
 const SPIKE_W = 400;
 const SPIKE_H = 120;
 
 // half-height of the bar stimulus -- shared by drawStimulus (drawing) and
-// isInsideStimulus (hit-testing) so the two always agree on the bar's extent
-const BAR_HALF_HEIGHT = 20;
+// isInsideStimulus (hit-testing) so the two always agree on the bar's extent.
+// Kept narrow enough to fit within one lobe of the simple cell's grating
+// (see GABOR_SIGMA_ACROSS / the grating wavelength above) -- a bar much
+// wider than that spans multiple ON/OFF lobes and partially cancels itself
+// out even when perfectly oriented.
+const BAR_HALF_HEIGHT = 15;
 
 // ring stimulus's inner radius as a fraction of its outer radius (the
 // Size slider) -- shared by drawStimulus and isInsideStimulus so they
 // always agree on the ring's thickness
-const RING_INNER_RATIO = 0.6;
+const RING_INNER_RATIO = 0.5;
 
 const stimCanvas = document.getElementById("stimCanvas");
 const stimCtx = stimCanvas.getContext("2d");
@@ -382,6 +399,17 @@ function drawStimulus() {
   }
 }
 
+// Standard-normal random sample (Box-Muller transform). Used to draw
+// sample points proportional to the simple cell's own Gaussian envelope,
+// rather than uniformly over a big window -- far more sample-efficient,
+// since most of a uniform window falls where the RF has ~0 sensitivity.
+function gaussianRandom() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
 function computeResponse(rfType, cx, cy, mouse) {
 
   let response = 0;
@@ -468,37 +496,57 @@ function computeResponse(rfType, cx, cy, mouse) {
   // --- SIMPLE CELL ---
   if (rfType === "simple") {
 
-    const dx = mouse.x - cx;
-    const dy = mouse.y - cy;
-
-    // decompose into position along the grating's oscillation axis vs.
-    // across it (parallel to the bar/stripe direction)
-    const proj = dx * Math.cos(RF_ORIENTATION) + dy * Math.sin(RF_ORIENTATION);
-    const perp = -dx * Math.sin(RF_ORIENTATION) + dy * Math.cos(RF_ORIENTATION);
-
     // elongated (anisotropic) Gabor envelope: the grating oscillates along
     // "proj", so the envelope must be NARROW along proj (or you'd see many
     // repeated cycles instead of one clean bar) and WIDE along "perp" --
     // that's the direction parallel to the bar itself, which is what makes
-    // the RF a long, narrow bar detector rather than a circular blob
-    const sigmaAcrossGrating = 18;
-    const sigmaAlongBar = 80;
+    // the RF a long, narrow bar detector rather than a circular blob.
+    //
+    // GABOR_SIGMA_ACROSS and the grating's wavelength (2*pi*GABOR_DIVISOR)
+    // are chosen together so the ON and OFF lobes have comparable weight:
+    // if the envelope is much narrower than the grating's wavelength, the
+    // OFF flanks barely register and the kernel ends up net-positive, so a
+    // stimulus covering the *entire* RF still scores as excitatory instead
+    // of cancelling out (this was the actual bug).
 
-    const envelope = Math.exp(
-      -(proj*proj) / (2*sigmaAcrossGrating*sigmaAcrossGrating)
-      -(perp*perp) / (2*sigmaAlongBar*sigmaAlongBar)
-    );
+    // Integrate the RF's signed sensitivity map against the stimulus's
+    // actual footprint (like the center-surround cell already does),
+    // rather than sampling the RF's weight at a single point (the mouse
+    // position) and ignoring the stimulus's size entirely. Sample points
+    // proportional to the envelope itself (importance sampling) rather
+    // than uniformly over a big window -- far more efficient, since a
+    // uniform window mostly lands where the RF has ~0 sensitivity.
+    const samples = 500;
 
-    const grating = Math.cos(proj / 12);
+    let weightedSum = 0;
+    let weightNorm = 0;
 
-    // a black stimulus inverts which subregions it excites vs. suppresses
-    const stimType = document.getElementById("stimType").value;
-    const contrastSign = stimType.endsWith("White") ? 1 : -1;
+    for (let i = 0; i < samples; i++) {
+
+      const proj = gaussianRandom() * GABOR_SIGMA_ACROSS;
+      const perp = gaussianRandom() * GABOR_SIGMA_ALONG;
+
+      const x = cx + proj * Math.cos(RF_ORIENTATION) - perp * Math.sin(RF_ORIENTATION);
+      const y = cy + proj * Math.sin(RF_ORIENTATION) + perp * Math.cos(RF_ORIENTATION);
+
+      // signed RF sensitivity at this point -- positive in ON subregions,
+      // negative in OFF subregions (the envelope itself is already baked
+      // into the sampling density, so it isn't multiplied in again here)
+      const weight = Math.cos(proj / GABOR_DIVISOR);
+
+      // signed stimulus contrast at this point: +1 white, -1 black, 0 outside
+      const stim = isInsideStimulus(x, y);
+
+      weightedSum += weight * stim;
+      weightNorm += Math.abs(weight);
+    }
+
+    const drive = weightNorm > 0 ? weightedSum / weightNorm : 0;
 
     const gain = 15;
-    const baseline = 1;
+    const baseline = 0.5;
 
-    response = baseline + gain * envelope * grating * contrastSign;
+    response = baseline + gain * drive;
   }
 
   // --- clamp ---
@@ -584,9 +632,11 @@ function drawReceptiveField(rfType,cx,cy) {
 
     // narrow along the grating's oscillation axis (x, locally), long
     // along the bar's own axis (y, locally) -- matches the anisotropic
-    // envelope in computeResponse
+    // envelope in computeResponse. bandWidth/bandHeight are kept
+    // proportional to GABOR_SIGMA_ACROSS/GABOR_SIGMA_ALONG so this outline
+    // never drifts out of sync with the actual response math again.
     const bandWidth = 44;
-    const bandHeight = 170;
+    const bandHeight = 180;
     const halfH = bandHeight / 2;
 
     stimCtx.lineWidth = 2;
