@@ -486,7 +486,7 @@ function computeResponse(rfType, cx, cy, mouse) {
     }
 
     // --- balanced response ---
-    const baseline = 3;
+    const baseline = 2;
     const gainE = 15;
     const gainI = 15;
 
@@ -543,7 +543,7 @@ function computeResponse(rfType, cx, cy, mouse) {
 
     const drive = weightNorm > 0 ? weightedSum / weightNorm : 0;
 
-    const gain = 15;
+    const gain = 18;
     const baseline = 0.5;
 
     response = baseline + gain * drive;
