@@ -87,14 +87,12 @@
      illusionType 3 ("Argyle"). Those two are reproduced faithfully below,
      translating the exact vertex/offset/color math from the source file
      into canvas drawing commands.
-   - illusionType 1 ("Blocks") had its layout parameters defined
-     (nCols, nRows, sqSize, squareAngle, diamondIntensityNormal,
-     surroundIntensity) but no per-trial drawing/placement code was present
-     in the source script to port. The Blocks condition below is a
-     best-effort reconstruction using those parameters (a grid of diamonds
-     on a checkerboard surround for the "illusion" condition, and a
-     uniform surround for "control"). Treat it as a placeholder to refine
-     against whatever the original Blocks stimulus was meant to look like.
+   - illusionType 1 ("Blocks") is ported from the companion MATLAB/
+     Psychtoolbox script (Experiment1_BrightnessMatching.m), which
+     contains the drawing logic the PsychoJS file was missing. Each
+     "brick" cell is a diamond flanked by four kite-shaped surround
+     quads; alternating horizontal bands of diamonds carry the
+     adjustable intensity, the rest stay fixed at diamondIntensityNormal.
    ========================================================================= */
 
 const DEG2RAD = Math.PI / 180;
@@ -133,8 +131,8 @@ function grayFromSigned(v){ // v in [-1,1] -> gray CSS string
 
 function pageBackgroundFor(illusionTypeNum){
   if (illusionTypeNum === 2) return grayFromSigned(2 * 0.05 - 1);
-  if (illusionTypeNum === 3) return "rgb(0,0,0)";
-  return "rgb(51,51,51)"; // Blocks reconstruction: dark neutral gray
+  if (illusionTypeNum === 3) return grayFromUnit(0.5); // grey background, per params.bgIntensity = .5 in the MATLAB source
+  return "rgb(51,51,51)"; // Blocks: background is not visible once the grid is drawn (it fully tiles the display)
 }
 
 // =========================================================================
@@ -297,49 +295,63 @@ function buildArgyleScene(subCond, adjustedInt){
 }
 
 function buildBlocksScene(subCond, adjustedInt){
-  // --- reconstruction: see the header note above. Not present in the
-  // original PsychoJS trial code, so this is a best-effort stand-in
-  // using the parameters that WERE defined (nCols, nRows, sqSize,
-  // squareAngle, diamondIntensityNormal, surroundIntensity). ---
+  // --- ported from the "illusionType == 1" branch of the MATLAB source
+  // (Experiment1_BrightnessMatching.m). Each 2s x 2s cell is a diamond
+  // ("kite") with four surrounding quads; cells tile in a brick-like
+  // (staggered) pattern. Every other horizontal band of diamonds carries
+  // the adjustable intensity; the rest stay at diamondIntensityNormal. ---
   const s = 0.1;
   const nCols = 4, nRows = 3;
-  const diamondIntensityNormal = 0.5; // 0..1 scale, as in the source script
+  const angle = 60;
+  const dHH = s / Math.tan(angle * DEG2RAD); // diamondHalfHeight
+  const diamondIntensityNormal = 0.5; // 0..1 scale, as in the MATLAB source
   const surroundIntensity = [[0.9, 0.65], [0.65, 0.35]]; // 0..1 scale
-  const controlSurround = 0.625; // average of surroundIntensity, used to remove the induction context
 
-  const minYOffset = (SCREEN_Y - (s * nRows)) / 2;
-  const maxYOffset = (SCREEN_Y - minYOffset) - s;
-  const minXOffset = (SCREEN_X - (s * nCols)) / 2;
-  const maxXOffset = (SCREEN_X - minXOffset) - s;
+  const minYOffset = (SCREEN_Y - (2 * s * nRows)) / 2;
+  const maxYOffset = (SCREEN_Y - minYOffset) - 2 * s;
+  const minXOffset = (SCREEN_X - (2 * s * nCols)) / 2 - 2 * s;
+  const maxXOffset = (SCREEN_X - minXOffset) - 2 * s;
 
-  const offsetY = [];
-  for (let y = minYOffset; y <= maxYOffset + 1e-9; y += s) offsetY.push(y);
-  const offsetX = [];
-  for (let x = minXOffset; x <= maxXOffset + 1e-9; x += s) offsetX.push(x);
+  // Surround quads, local coords within a 2s x 2s cell (origin at cell's top-left).
+  const poly = (subCond === 0)
+    ? { // illusion
+        topLeft: [[0, 0], [s, 0], [s, s - dHH], [0, s]],
+        topRight: [[s, 0], [2 * s, 0], [2 * s, s], [s, s - dHH]],
+        bottomLeft: [[0, s], [s, s + dHH], [s, 2 * s], [0, 2 * s]],
+        bottomRight: [[s, s + dHH], [2 * s, s], [2 * s, 2 * s], [s, 2 * s]]
+      }
+    : { // control
+        topLeft: [[0, dHH / 2], [s, -dHH / 2], [s, s - dHH / 2], [0, s]],
+        topRight: [[s, -dHH / 2], [2 * s, dHH / 2], [2 * s, s], [s, s - dHH / 2]],
+        bottomLeft: [[0, s], [s, s + dHH / 2], [s, 2 * s + dHH / 2], [0, 2 * s - dHH / 2]],
+        bottomRight: [[s, s + dHH / 2], [2 * s, s], [2 * s, 2 * s - dHH / 2], [s, 2 * s + dHH / 2]]
+      };
+  const diamondLeft = [[0, s], [s, s - dHH], [s, s + dHH]];
+  const diamondRight = [[s, s - dHH], [s, s + dHH], [2 * s, s]];
 
-  // Target diamond sits in the middle row, third column (fixed location).
-  const targetRow = 1, targetCol = 2;
+  const squares = [];
+  const diamonds = [];
+  const EPS = 1e-9;
 
-  const squares = []; // surround backgrounds, 0..1 scale
-  const diamonds = []; // diamonds, 0..1 scale (target uses adjustedInt via caller)
-  for (let rowInd = 0; rowInd < nRows; rowInd++) {
-    for (let colInd = 0; colInd < nCols; colInd++) {
-      const pos = [offsetX[colInd] - 0.89, offsetY[rowInd] - 0.5];
-      const isTarget = (rowInd === targetRow && colInd === targetCol);
-      const surround = (subCond === 0)
-        ? surroundIntensity[rowInd % 2][colInd % 2]
-        : controlSurround;
-      squares.push({
-        verts: [[0, 0], [s, 0], [s, s], [0, s]],
-        pos,
-        colorUnit: surround
-      });
-      const diamondVerts = [[s / 2, 0], [s, s / 2], [s / 2, s], [0, s / 2]];
-      diamonds.push({
-        verts: diamondVerts,
-        pos,
-        colorUnit: isTarget ? (adjustedInt + 1) / 2 : diamondIntensityNormal
-      });
+  for (let offsetY = minYOffset; offsetY <= maxYOffset + EPS; offsetY += 2 * s) {
+    const rem = (((offsetY - minYOffset) % (4 * s)) + 4 * s) % (4 * s);
+    const actualStartOffset = rem / 2 + minXOffset;
+    const row = (rem > EPS) ? 2 : 1; // 1-indexed, matches the MATLAB "row" alternator
+    const rowIdx = row - 1;
+    const diamondIntensity = (row === 2) ? (adjustedInt + 1) / 2 : diamondIntensityNormal;
+
+    for (let offsetX = actualStartOffset; offsetX <= maxXOffset + EPS; offsetX += 2 * s) {
+      const pos = [offsetX - 0.89, offsetY - 0.5];
+      if (offsetX > minXOffset + EPS) {
+        squares.push({ verts: poly.topLeft, pos, colorUnit: surroundIntensity[rowIdx][0] });
+        squares.push({ verts: poly.bottomLeft, pos, colorUnit: surroundIntensity[rowIdx][1] });
+        diamonds.push({ verts: diamondLeft, pos, colorUnit: diamondIntensity });
+      }
+      if (offsetX < maxXOffset - EPS) {
+        squares.push({ verts: poly.topRight, pos, colorUnit: surroundIntensity[rowIdx][1] });
+        squares.push({ verts: poly.bottomRight, pos, colorUnit: surroundIntensity[rowIdx][0] });
+        diamonds.push({ verts: diamondRight, pos, colorUnit: diamondIntensity });
+      }
     }
   }
   return { squares, diamonds };
