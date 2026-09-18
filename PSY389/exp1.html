@@ -21,15 +21,21 @@
     }
   }
   * { box-sizing: border-box; }
-  html, body { margin:0; padding:0; background: var(--bg); color: var(--text); }
+  html, body {
+    margin:0; padding:0; background: var(--bg); color: var(--text);
+    width: 100%; height: 100%;
+    overflow: hidden; /* run edge-to-edge, no scrollbars, like a fullscreen PsychoJS window */
+  }
   body{
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    min-height: 100vh;
+    position: fixed;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
   }
-  #jspsych-target{ width: 100%; max-width: 1000px; padding: 24px; }
+  #jspsych-target{ width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .jspsych-display-element{ width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
   .card{
     background: var(--panel);
     border: 1px solid var(--border);
@@ -67,10 +73,14 @@
   .btn:disabled{ opacity: 0.45; cursor: not-allowed; }
   .btn.secondary{ background: transparent; color: var(--accent); }
   .err{ color: #ff8080; font-size: 0.85rem; min-height: 1.2em; margin-top: 4px; }
-  .task-wrap{ text-align:center; }
-  .task-wrap canvas{ border-radius: 6px; display:block; margin: 0 auto; max-width: 100%; height: auto; }
-  .task-hint{ color: var(--muted); font-size: 0.85rem; margin-top: 14px; }
-  .progress{ color: var(--muted); font-size: 0.8rem; margin-bottom: 10px; }
+  .task-wrap{
+    text-align:center;
+    width: 100vw; height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .task-wrap canvas{ display:block; }
+  .task-hint{ color: var(--muted); font-size: 0.85rem; margin-top: 10px; }
+  .progress{ color: var(--muted); font-size: 0.8rem; margin-bottom: 8px; }
   #download-status{ margin-top: 14px; font-size: 0.9rem; color: var(--muted); min-height: 1.2em; }
 </style>
 </head>
@@ -127,6 +137,53 @@ function grayFromUnit(v){ // v in [0,1] -> gray CSS string
 }
 function grayFromSigned(v){ // v in [-1,1] -> gray CSS string
   return grayFromUnit((v + 1) / 2);
+}
+
+// =========================================================================
+// Fullscreen + responsive canvas sizing
+// (PsychoJS opened the window with fullscr:true; the Fullscreen API is the
+// browser equivalent. It must be triggered by a direct user gesture, and
+// may be silently blocked in a sandboxed iframe -- in that case the layout
+// below still fills the entire available viewport edge-to-edge.)
+// =========================================================================
+function requestFullscreenSafe(el){
+  el = el || document.documentElement;
+  const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+  if (!fn) return;
+  try {
+    const p = fn.call(el);
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (e) { /* ignore -- fullscreen is a nice-to-have, not required */ }
+}
+function exitFullscreenSafe(){
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+  if (!fsEl) return;
+  const fn = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+  if (!fn) return;
+  try {
+    const p = fn.call(document);
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (e) { /* ignore */ }
+}
+
+// Sizes `canvas` to fill as much of the viewport as possible while keeping
+// the fixed SCREEN_X:SCREEN_Y aspect ratio (letterboxed, like PsychoJS's
+// "height" units), and scales the drawing buffer for devicePixelRatio so
+// it stays sharp. Returns the CSS-pixel size to draw with.
+function sizeCanvasToViewport(canvas, reservePx){
+  reservePx = reservePx || 0;
+  const maxW = window.innerWidth * 0.98;
+  const maxH = (window.innerHeight - reservePx) * 0.98;
+  let cssW = maxW, cssH = cssW / (SCREEN_X / SCREEN_Y);
+  if (cssH > maxH) { cssH = maxH; cssW = cssH * (SCREEN_X / SCREEN_Y); }
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = cssW + "px";
+  canvas.style.height = cssH + "px";
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { cssW, cssH };
 }
 
 function pageBackgroundFor(illusionTypeNum){
@@ -360,8 +417,7 @@ function buildBlocksScene(subCond, adjustedInt){
 // =========================================================================
 // Canvas drawing
 // =========================================================================
-function drawScene(ctx, canvas, illusionTypeNum, subCond, adjustedInt){
-  const w = canvas.width, h = canvas.height;
+function drawScene(ctx, w, h, illusionTypeNum, subCond, adjustedInt){
   ctx.save();
   ctx.fillStyle = pageBackgroundFor(illusionTypeNum);
   ctx.fillRect(0, 0, w, h);
@@ -438,6 +494,7 @@ class SubjectInfoPlugin {
       if (!illusionVal) { errEl.textContent = "Please select an illusion type."; return; }
       session.participantId = pid;
       session.illusionTypeNum = Number(illusionVal);
+      requestFullscreenSafe(); // must be called directly from this click handler (user gesture)
       this.jsPsych.finishTrial({ participant_id: pid, illusion_type: Number(illusionVal) });
     });
   }
@@ -474,7 +531,7 @@ class BlankPlugin {
   constructor(jsPsych){ this.jsPsych = jsPsych; }
   trial(display_element, trial){
     const bg = pageBackgroundFor(session.illusionTypeNum);
-    display_element.innerHTML = `<div style="width:100%;height:60vh;background:${bg};border-radius:6px;"></div>`;
+    display_element.innerHTML = `<div style="position:fixed;inset:0;width:100vw;height:100vh;background:${bg};"></div>`;
     this.jsPsych.pluginAPI.setTimeout(() => this.jsPsych.finishTrial({}), trial.duration || BLANK_MS);
   }
 }
@@ -494,16 +551,21 @@ class IllusionAdjustmentPlugin {
     display_element.innerHTML = `
       <div class="task-wrap">
         <div class="progress">Trial ${trialNumber} of ${trial.total_trials}</div>
-        <canvas id="illusion-canvas" width="890" height="500"></canvas>
+        <canvas id="illusion-canvas"></canvas>
         <div class="task-hint">↑ brighter · ↓ darker · SPACE to confirm</div>
       </div>`;
     const canvas = display_element.querySelector("#illusion-canvas");
     const ctx = canvas.getContext("2d");
+    let { cssW, cssH } = sizeCanvasToViewport(canvas, 60);
 
     let upHeld = false, downHeld = false;
     let responded = false;
     let rafId = null;
     const startTime = performance.now();
+
+    const onResize = () => { ({ cssW, cssH } = sizeCanvasToViewport(canvas, 60)); };
+    window.addEventListener("resize", onResize);
+    document.addEventListener("fullscreenchange", onResize);
 
     function clamp(v){ return Math.min(1, Math.max(-1, v)); }
 
@@ -528,6 +590,8 @@ class IllusionAdjustmentPlugin {
       const rt = Math.round(performance.now() - startTime);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("fullscreenchange", onResize);
       if (rafId) cancelAnimationFrame(rafId);
 
       const startIntensity = startFrac;               // 0..1
@@ -557,13 +621,13 @@ class IllusionAdjustmentPlugin {
     function frame(){
       if (upHeld) adjustedInt = clamp(adjustedInt + INCREMENT);
       if (downHeld) adjustedInt = clamp(adjustedInt - INCREMENT);
-      drawScene(ctx, canvas, illusionTypeNum, subCond, adjustedInt);
+      drawScene(ctx, cssW, cssH, illusionTypeNum, subCond, adjustedInt);
       rafId = requestAnimationFrame(frame);
     }
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
-    drawScene(ctx, canvas, illusionTypeNum, subCond, adjustedInt);
+    drawScene(ctx, cssW, cssH, illusionTypeNum, subCond, adjustedInt);
     rafId = requestAnimationFrame(frame);
   }
 }
