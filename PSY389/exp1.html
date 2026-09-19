@@ -131,8 +131,21 @@ const session = {
 // Response, Illusion Type, Condition, Reaction Time
 const collectedRows = [];
 
-function grayFromUnit(v){ // v in [0,1] -> gray CSS string
-  const c = Math.round(Math.max(0, Math.min(1, v)) * 255);
+// ---- Display gamma correction ----
+// The intensity values used throughout this file (baseIntensity,
+// surroundIntensity, adjustedInt, etc.) are meant as linear luminance
+// fractions (0 = black, 1 = white). Real displays don't reproduce color
+// values linearly -- output luminance ~= (pixel value)^gamma -- so the
+// pixel value actually written to the canvas must be pre-corrected as
+// pixel = linear^(1/gamma) to get the intended linear luminance out.
+// Assumed display gamma, per request:
+const GAMMA = 2;
+function gammaCorrect(linear){ // linear in [0,1] -> corrected pixel value in [0,1]
+  return Math.pow(Math.max(0, Math.min(1, linear)), 1 / GAMMA);
+}
+
+function grayFromUnit(v){ // v in [0,1] (linear intensity) -> gamma-corrected gray CSS string
+  const c = Math.round(gammaCorrect(v) * 255);
   return `rgb(${c},${c},${c})`;
 }
 function grayFromSigned(v){ // v in [-1,1] -> gray CSS string
@@ -201,7 +214,7 @@ function pageBackgroundFor(illusionTypeNum){
 
 function buildPlaidScene(subCond, adjustedInt){
   // --- ported from illusionType === 2 branch of trialRoutineBegin() ---
-  const s = 0.1;
+  const s = 0.1 * 0.7; // shrunk to 70% of the original tile size
   const angle = 60;
   const tanA = Math.tan(angle * DEG2RAD);
   const nCols = 5, nRows = 5;
@@ -267,7 +280,7 @@ function buildPlaidScene(subCond, adjustedInt){
 
 function buildArgyleScene(subCond, adjustedInt){
   // --- ported from illusionType === 3 branch of trialRoutineBegin() ---
-  const s = 0.1;
+  const s = 0.1 * 0.7; // shrunk to 70% of the original tile size
   const nCols = 8, nRows = 4;
   const bg = 0;
   const intensities = [-0.5, 0.5];
