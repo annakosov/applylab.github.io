@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>psy389exp1 — Brightness Adjustment Task</title>
+<title>PSY 389 Experiment 1 — Brightness Matching Task</title>
 <script src="https://cdn.jsdelivr.net/npm/jspsych/dist/index.browser.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <style>
@@ -44,9 +44,9 @@
     max-width: 720px;
     margin: 0 auto;
   }
-  .card h1{ font-size: 1.3rem; font-weight: 600; margin: 0 0 14px; }
+  .card h1{ font-size: 1.6rem; font-weight: 600; margin: 0 0 14px; }
   .card p{ line-height: 1.6; color: var(--text); }
-  .card .muted{ color: var(--muted); font-size: 0.92rem; }
+  .card .muted{ color: var(--muted); font-size: 1.2rem; }
   label{ display:block; margin: 18px 0 6px; font-size: 0.95rem; color: var(--muted); }
   input[type="text"], select{
     width: 100%;
@@ -62,7 +62,7 @@
     display: inline-block;
     margin-top: 22px;
     padding: 10px 22px;
-    font-size: 1rem;
+    font-size: 1.3rem;
     font-weight: 600;
     border-radius: 6px;
     border: 1px solid var(--accent);
@@ -72,16 +72,16 @@
   }
   .btn:disabled{ opacity: 0.45; cursor: not-allowed; }
   .btn.secondary{ background: transparent; color: var(--accent); }
-  .err{ color: #ff8080; font-size: 0.85rem; min-height: 1.2em; margin-top: 4px; }
+  .err{ color: #ff8080; font-size: 1.2rem; min-height: 1.2em; margin-top: 4px; }
   .task-wrap{
     text-align:center;
     width: 100vw; height: 100vh;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
   .task-wrap canvas{ display:block; }
-  .task-hint{ color: var(--muted); font-size: 0.85rem; margin-top: 10px; }
-  .progress{ color: var(--muted); font-size: 0.8rem; margin-bottom: 8px; }
-  #download-status{ margin-top: 14px; font-size: 0.9rem; color: var(--muted); min-height: 1.2em; }
+  .task-hint{ color: var(--muted); font-size: 1.2rem; margin-top: 10px; }
+  .progress{ color: var(--muted); font-size: 1.2rem; margin-bottom: 8px; }
+  #download-status{ margin-top: 14px; font-size: 1.3rem; color: var(--muted); min-height: 1.3em; }
 </style>
 </head>
 <body>
@@ -357,7 +357,7 @@ function buildBlocksScene(subCond, adjustedInt){
   // ("kite") with four surrounding quads; cells tile in a brick-like
   // (staggered) pattern. Every other horizontal band of diamonds carries
   // the adjustable intensity; the rest stay at diamondIntensityNormal. ---
-  const s = 0.1;
+  const s = 0.1 * 0.7; // shrunk to 70% of the original tile size
   const nCols = 4, nRows = 3;
   const angle = 60;
   const dHH = s / Math.tan(angle * DEG2RAD); // diamondHalfHeight
@@ -471,7 +471,7 @@ class SubjectInfoPlugin {
   trial(display_element, trial){
     display_element.innerHTML = `
       <div class="card">
-        <h1>psy389exp1</h1>
+        <h1>Psy389 Exp 1</h1>
         <p class="muted">Enter session details to begin.</p>
         <label for="pid-input">Participant ID</label>
         <input id="pid-input" type="text" autocomplete="off" placeholder="e.g. S01">
