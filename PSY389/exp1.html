@@ -435,7 +435,10 @@ function drawScene(ctx, w, h, illusionTypeNum, subCond, adjustedInt){
   ctx.fillStyle = pageBackgroundFor(illusionTypeNum);
   ctx.fillRect(0, 0, w, h);
 
-  const toPx = (xNorm, yNorm) => [w / 2 + xNorm * h, h / 2 - yNorm * h];
+  const toPx = (xNorm, yNorm) => {
+    const flip = (illusionTypeNum === 3) ? -1 : 1; // Argyle is drawn upside-down relative to the others
+    return [w / 2 + xNorm * h, h / 2 - flip * yNorm * h];
+  };
 
   function fillPoly(vertsNorm, posNorm, cssColor){
     ctx.beginPath();
@@ -454,7 +457,7 @@ function drawScene(ctx, w, h, illusionTypeNum, subCond, adjustedInt){
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     });
     ctx.strokeStyle = cssColor;
-    ctx.lineWidth = Math.max(1, h * 0.006);
+    ctx.lineWidth = Math.max(1, h * 0.003);
     ctx.stroke();
   }
 
