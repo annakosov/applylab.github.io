@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PSY389 Experiment 1 — Brightness Matching Task</title>
+<script src="https://cdn.jsdelivr.net/npm/jspsych/dist/index.browser.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg: #14161a;
+    --panel: #1c1f26;
+    --text: #e8e9ec;
+    --muted: #9aa0ab;
+    --accent: #6fb1ff;
+    --border: #2c313b;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg: #14161a; --panel: #1c1f26; --text:#e8e9ec; --muted:#9aa0ab; --accent:#6fb1ff; --border:#2c313b;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin:0; padding:0; background: var(--bg); color: var(--text);
+    width: 100%; height: 100%;
+    overflow: hidden; /* run edge-to-edge, no scrollbars, like a fullscreen PsychoJS window */
+  }
+  body{
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #jspsych-target{ width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .jspsych-display-element{ width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .card{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 36px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .card h1{ font-size: 2rem; font-weight: 600; margin: 0 0 14px; }
+  .card p{ line-height: 1.6; font-size: 1.5rem; color: var(--text); }
+  .card .muted{ color: var(--muted); font-size: 1.2rem; }
+  label{ display:block; margin: 18px 0 6px; font-size: 0.95rem; color: var(--muted); }
+  input[type="text"], select{
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 1.2rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #10121600;
+    background-color: #0f1115;
+    color: var(--text);
+  }
+  .btn{
+    display: inline-block;
+    margin-top: 22px;
+    padding: 10px 22px;
+    font-size: 1.3rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #0c1116;
+    cursor: pointer;
+  }
+  .btn:disabled{ opacity: 0.45; cursor: not-allowed; }
+  .btn.secondary{ background: transparent; color: var(--accent); }
+  .err{ color: #ff8080; font-size: 1.2rem; min-height: 1.2em; margin-top: 4px; }
+  .task-wrap{
+    text-align:center;
+    width: 100vw; height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .task-wrap canvas{ display:block; }
+  .task-hint{ color: var(--muted); font-size: 1.2rem; margin-top: 10px; }
+  .progress{ color: var(--muted); font-size: 1.2rem; margin-bottom: 8px; }
+  #download-status{ margin-top: 14px; font-size: 1.3rem; color: var(--muted); min-height: 1.3em; }
+</style>
+</head>
+<body>
+<div id="jspsych-target"></div>
+
+<script>
+/* =========================================================================
+   psy389exp1 — converted from PsychoJS to jsPsych
+   -------------------------------------------------------------------------
+   Notes on the conversion:
+   - The original PsychoJS script only contained per-trial rendering logic
+     for illusionType 2 ("Plaid" / Adelson-style corrugated plaid) and
+     illusionType 3 ("Argyle"). Those two are reproduced faithfully below,
+     translating the exact vertex/offset/color math from the source file
+     into canvas drawing commands.
+   - illusionType 1 ("Blocks") is ported from the companion MATLAB/
+     Psychtoolbox script (Experiment1_BrightnessMatching.m), which
+     contains the drawing logic the PsychoJS file was missing. Each
+     "brick" cell is a diamond flanked by four kite-shaped surround
+     quads; alternating horizontal bands of diamonds carry the
+     adjustable intensity, the rest stay fixed at diamondIntensityNormal.
+   ========================================================================= */
+
+const DEG2RAD = Math.PI / 180;
+
+// ---- Fixed experiment parameters (ported from the PsychoJS script) ----
+const SCREEN_X = 1.78;   // "height units" width of the display
+const SCREEN_Y = 1.0;    // "height units" height of the display
+const INCREMENT = 0.005; // brightness step per animation frame while a key is held
+const N_REPS = 10;       // reps per condition (illusion / control) -> 20 trials total
+const BLANK_MS = 500;    // inter-trial blank duration
+const ILLUSION_LABELS = ["BLOCKS", "PLAID", "ARGYLE"];
+
+// ---------------------------------------------------------------------
+// Session-level state, filled in by the subject-info screen and read by
+// every later trial. (Kept as a plain object rather than jsPsych timeline
+// variables, since it mirrors how the original script stored dialog
+// answers in expInfo.)
+// ---------------------------------------------------------------------
+const session = {
+  participantId: null,
+  illusionTypeNum: null // 1, 2, or 3
+};
+
+// Rows collected for the final Excel export, in the exact column order
+// requested: timestamp, trial, subj ID, Start Intensity, Adjustment
+// Response, Illusion Type, Condition, Reaction Time
+const collectedRows = [];
+
+// ---- Display gamma correction ----
+// The intensity values used throughout this file (baseIntensity,
+// surroundIntensity, adjustedInt, etc.) are meant as linear luminance
+// fractions (0 = black, 1 = white). Real displays don't reproduce color
+// values linearly -- output luminance ~= (pixel value)^gamma -- so the
+// pixel value actually written to the canvas must be pre-corrected as
+// pixel = linear^(1/gamma) to get the intended linear luminance out.
+// Assumed display gamma, per request:
+const GAMMA = 2;
+function gammaCorrect(linear){ // linear in [0,1] -> corrected pixel value in [0,1]
+  return Math.pow(Math.max(0, Math.min(1, linear)), 1 / GAMMA);
+}
+
+function grayFromUnit(v){ // v in [0,1] (linear intensity) -> gamma-corrected gray CSS string
+  const c = Math.round(gammaCorrect(v) * 255);
+  return `rgb(${c},${c},${c})`;
+}
+function grayFromSigned(v){ // v in [-1,1] -> gray CSS string
+  return grayFromUnit((v + 1) / 2);
+}
+
+// =========================================================================
+// Fullscreen + responsive canvas sizing
+// (PsychoJS opened the window with fullscr:true; the Fullscreen API is the
+// browser equivalent. It must be triggered by a direct user gesture, and
+// may be silently blocked in a sandboxed iframe -- in that case the layout
+// below still fills the entire available viewport edge-to-edge.)
+// =========================================================================
+function requestFullscreenSafe(el){
+  el = el || document.documentElement;
+  const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+  if (!fn) return;
+  try {
+    const p = fn.call(el);
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (e) { /* ignore -- fullscreen is a nice-to-have, not required */ }
+}
+function exitFullscreenSafe(){
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+  if (!fsEl) return;
+  const fn = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+  if (!fn) return;
+  try {
+    const p = fn.call(document);
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (e) { /* ignore */ }
+}
+
+// Sizes `canvas` to fill as much of the viewport as possible while keeping
+// the fixed SCREEN_X:SCREEN_Y aspect ratio (letterboxed, like PsychoJS's
+// "height" units), and scales the drawing buffer for devicePixelRatio so
+// it stays sharp. Returns the CSS-pixel size to draw with.
+function sizeCanvasToViewport(canvas, reservePx){
+  reservePx = reservePx || 0;
+  const maxW = window.innerWidth * 0.98;
+  const maxH = (window.innerHeight - reservePx) * 0.98;
+  let cssW = maxW, cssH = cssW / (SCREEN_X / SCREEN_Y);
+  if (cssH > maxH) { cssH = maxH; cssW = cssH * (SCREEN_X / SCREEN_Y); }
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = cssW + "px";
+  canvas.style.height = cssH + "px";
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { cssW, cssH };
+}
+
+function pageBackgroundFor(illusionTypeNum){
+  if (illusionTypeNum === 2) return grayFromSigned(2 * 0.05 - 1);
+  if (illusionTypeNum === 3) return grayFromUnit(0.5); // grey background, per params.bgIntensity = .5 in the MATLAB source
+  return "rgb(51,51,51)"; // Blocks: background is not visible once the grid is drawn (it fully tiles the display)
+}
+
+// =========================================================================
+// Scene builders: pure functions that compute the shapes to draw for a
+// given illusion type / sub-condition ("illusion" vs "control") / current
+// adjustable intensity. Coordinates are in the same "height units" system
+// PsychoPy uses (origin at center, y up, 1 unit = one screen height).
+// =========================================================================
+
+function buildPlaidScene(subCond, adjustedInt){
+  // --- ported from illusionType === 2 branch of trialRoutineBegin() ---
+  const s = 0.1 * 0.7; // shrunk to 70% of the original tile size
+  const angle = 60;
+  const tanA = Math.tan(angle * DEG2RAD);
+  const nCols = 5, nRows = 5;
+  const baseIntensity = [0.5, 0.35, 0.5, 0.35, 0.5].map(x => 2 * x - 1);
+  const intensityChange = 0.30;
+
+  const minYOffset = (SCREEN_Y - (s * nRows)) / 2;
+  const maxYOffset = (SCREEN_Y - minYOffset) - s;
+  const minXOffset = (SCREEN_X - (s * nCols)) / 2;
+  const maxXOffset = (SCREEN_X - minXOffset) - s;
+
+  const offsetY = [];
+  for (let y = minYOffset; y <= maxYOffset + 1e-9; y += s) offsetY.push(y);
+  const offsetX = [];
+  for (let x = minXOffset; x <= maxXOffset + 1e-9; x += s) offsetX.push(x);
+
+  // blockIntensity[row][col]
+  const blockIntensity = Array.from({ length: nRows }, () => baseIntensity.slice());
+  for (let c = 0; c < nCols; c++) {
+    blockIntensity[1][c] -= intensityChange;
+    blockIntensity[3][c] += intensityChange;
+  }
+  blockIntensity[3][2] = adjustedInt; // the adjustable target patch
+
+  let polyBase, extraYOffset;
+  if (subCond === 0) { // illusion (folded / corrugated)
+    polyBase = [
+      [[0, -0.5 * s], [s, -0.5 * s], [s, s], [0, s]],
+      [[0, 0], [s, 0], [s - s / tanA, s], [-s / tanA, s]],
+      [[-s / tanA, 0], [s - s / tanA, 0], [s - s / tanA, s], [-s / tanA, s]],
+      [[-s / tanA, 0], [s - s / tanA, 0], [s, s], [0, s]],
+      [[0, 0], [s, 0], [s, 1.5 * s], [0, 1.5 * s]]
+    ];
+    extraYOffset = Array.from({ length: nCols }, () => [0, 0, 0, 0]);
+  } else { // control (flat, unfolded)
+    polyBase = [
+      [[0, -0.5 * s], [s, -0.5 * s], [s, s], [0, s]],
+      [[0, 0], [s, 0], [s, s], [0, s]],
+      [[0, 0], [s, 0], [s, s], [0, s]],
+      [[0, 0], [s, 0], [s, s], [0, s]],
+      [[0, 0], [s, 0], [s, 1.5 * s], [0, 1.5 * s]]
+    ];
+    extraYOffset = [
+      [0, 0, 0, 0],
+      [0, -s / tanA, -s / tanA, 0],
+      [-s / tanA, -s / tanA, -s / tanA, -s / tanA],
+      [-s / tanA, 0, 0, -s / tanA],
+      [0, 0, 0, 0]
+    ];
+  }
+
+  const shapes = [];
+  for (let colInd = 0; colInd < nCols; colInd++) {
+    for (let rowInd = 0; rowInd < nRows; rowInd++) {
+      const verts = polyBase[rowInd].map(v => v.slice());
+      for (let v = 0; v < verts.length; v++) verts[v][1] -= extraYOffset[colInd][v];
+      const pos = [offsetX[colInd] - 0.89, offsetY[rowInd] - 0.5];
+      shapes.push({ verts, pos, colorSigned: blockIntensity[rowInd][colInd] });
+    }
+  }
+  return { shapes, lines: [] };
+}
+
+function buildArgyleScene(subCond, adjustedInt){
+  // --- ported from illusionType === 3 branch of trialRoutineBegin() ---
+  const s = 0.1 * 0.7; // shrunk to 70% of the original tile size
+  const nCols = 8, nRows = 4;
+  const bg = 0;
+  const intensities = [-0.5, 0.5];
+
+  const polyBaseA = [
+    [[0, 0], [s, 0], [0, s]],
+    [[0, s], [s, 0], [s, s]],
+    [[0, s], [s, s], [s, 2 * s]],
+    [[0, s], [s, 2 * s], [0, 2 * s]]
+  ];
+  const polyBaseB = [
+    polyBaseA[2].map(([x, y]) => [x, y - s]),
+    polyBaseA[3].map(([x, y]) => [x, y - s]),
+    polyBaseA[0].map(([x, y]) => [x, y + s]),
+    polyBaseA[1].map(([x, y]) => [x, y + s])
+  ];
+  const lineCols = [intensities[1], intensities[0], intensities[0], intensities[1]];
+  const lineBase = [
+    [[0, s], [s, 2 * s]],
+    [[0, 0], [s, s]],
+    [[s, 0], [0, s]],
+    [[s, s], [0, 2 * s]]
+  ];
+
+  const minYOffset = (SCREEN_Y - (s * 2 * nRows)) / 2;
+  const maxYOffset = (SCREEN_Y - minYOffset) - s * 2;
+  const minXOffset = (SCREEN_X - (s * nCols)) / 2;
+  const maxXOffset = (SCREEN_X - minXOffset) - s;
+
+  const yOffsetList = [];
+  for (let y = minYOffset; y <= maxYOffset + 1e-9; y += s * 2) yOffsetList.push(y);
+  let xOffsetList = [];
+  for (let x = minXOffset; x <= maxXOffset + 1e-9; x += s) xOffsetList.push(x);
+
+  if (subCond === 1) { // control: stagger the columns to break the argyle alignment
+    const addOffsets = [];
+    for (let i = 0; i < nCols / 2; i++) addOffsets.push(0, s / 2);
+    const cumsums = [];
+    let sum = 0;
+    for (let i = 0; i < addOffsets.length; i++) { sum += addOffsets[i]; cumsums.push(sum); }
+    xOffsetList = xOffsetList.map((x, i) => x + cumsums[i]);
+    const sumOffsets = addOffsets.reduce((a, b) => a + b, 0);
+    xOffsetList = xOffsetList.map(x => x - sumOffsets / 2);
+  }
+
+  function finalColorFor(row, col, sq){
+    let polyCols = [
+      [bg, intensities[1], bg, bg],
+      [bg, bg, intensities[0], bg]
+    ];
+    polyCols.push(polyCols[1].slice());
+    polyCols.push(polyCols[0].slice());
+    if (col === 3 || col === 4) {
+      if ((row === 0 && sq > 2) || (row === 3 && sq < 1) || row === 1 || row === 2) {
+        polyCols[3][0] = adjustedInt;
+        polyCols[3][3] = adjustedInt;
+        polyCols[0][0] = adjustedInt;
+        polyCols[0][3] = adjustedInt;
+      }
+    }
+    return polyCols[col % nRows][sq];
+  }
+
+  const shapes = [];
+  const lines = [];
+  for (let col = 0; col < xOffsetList.length; col++) {
+    const offX = xOffsetList[col];
+    for (let row = 0; row < yOffsetList.length; row++) {
+      const offY = yOffsetList[row];
+      const pos = [offX - 0.89, offY - 0.5];
+      const nSquares = polyBaseA.length;
+      for (let sq = 0; sq < nSquares; sq++) {
+        const finalColor = finalColorFor(row, col, sq);
+        const verts = (col % 2 === 0 ? polyBaseA[sq] : polyBaseB[sq]).map(v => v.slice());
+        shapes.push({ verts, pos, colorSigned: finalColor });
+      }
+      const lineIdx = col % lineBase.length;
+      lines.push({ verts: lineBase[lineIdx].map(v => v.slice()), pos, colorSigned: lineCols[lineIdx] });
+    }
+  }
+  return { shapes, lines };
+}
+
+function buildBlocksScene(subCond, adjustedInt){
+  // --- ported from the "illusionType == 1" branch of the MATLAB source
+  // (Experiment1_BrightnessMatching.m). Each 2s x 2s cell is a diamond
+  // ("kite") with four surrounding quads; cells tile in a brick-like
+  // (staggered) pattern. Every other horizontal band of diamonds carries
+  // the adjustable intensity; the rest stay at diamondIntensityNormal. ---
+  const s = 0.1 * 0.7; // shrunk to 70% of the original tile size
+  const nCols = 4, nRows = 3;
+  const angle = 60;
+  const dHH = s / Math.tan(angle * DEG2RAD); // diamondHalfHeight
+  const diamondIntensityNormal = 0.5; // 0..1 scale, as in the MATLAB source
+  const surroundIntensity = [[0.9, 0.65], [0.65, 0.35]]; // 0..1 scale
+
+  const minYOffset = (SCREEN_Y - (2 * s * nRows)) / 2;
+  const maxYOffset = (SCREEN_Y - minYOffset) - 2 * s;
+  const minXOffset = (SCREEN_X - (2 * s * nCols)) / 2 - 2 * s;
+  const maxXOffset = (SCREEN_X - minXOffset) - 2 * s;
+
+  // Surround quads, local coords within a 2s x 2s cell (origin at cell's top-left).
+  const poly = (subCond === 0)
+    ? { // illusion
+        topLeft: [[0, 0], [s, 0], [s, s - dHH], [0, s]],
+        topRight: [[s, 0], [2 * s, 0], [2 * s, s], [s, s - dHH]],
+        bottomLeft: [[0, s], [s, s + dHH], [s, 2 * s], [0, 2 * s]],
+        bottomRight: [[s, s + dHH], [2 * s, s], [2 * s, 2 * s], [s, 2 * s]]
+      }
+    : { // control
+        topLeft: [[0, dHH / 2], [s, -dHH / 2], [s, s - dHH / 2], [0, s]],
+        topRight: [[s, -dHH / 2], [2 * s, dHH / 2], [2 * s, s], [s, s - dHH / 2]],
+        bottomLeft: [[0, s], [s, s + dHH / 2], [s, 2 * s + dHH / 2], [0, 2 * s - dHH / 2]],
+        bottomRight: [[s, s + dHH / 2], [2 * s, s], [2 * s, 2 * s - dHH / 2], [s, 2 * s + dHH / 2]]
+      };
+  const diamondLeft = [[0, s], [s, s - dHH], [s, s + dHH]];
+  const diamondRight = [[s, s - dHH], [s, s + dHH], [2 * s, s]];
+
+  const squares = [];
+  const diamonds = [];
+  const EPS = 1e-9;
+
+  for (let offsetY = minYOffset; offsetY <= maxYOffset + EPS; offsetY += 2 * s) {
+    const rem = (((offsetY - minYOffset) % (4 * s)) + 4 * s) % (4 * s);
+    const actualStartOffset = rem / 2 + minXOffset;
+    const row = (rem > EPS) ? 2 : 1; // 1-indexed, matches the MATLAB "row" alternator
+    const rowIdx = row - 1;
+    const diamondIntensity = (row === 2) ? (adjustedInt + 1) / 2 : diamondIntensityNormal;
+
+    for (let offsetX = actualStartOffset; offsetX <= maxXOffset + EPS; offsetX += 2 * s) {
+      const pos = [offsetX - 0.89, offsetY - 0.5];
+      if (offsetX > minXOffset + EPS) {
+        squares.push({ verts: poly.topLeft, pos, colorUnit: surroundIntensity[rowIdx][0] });
+        squares.push({ verts: poly.bottomLeft, pos, colorUnit: surroundIntensity[rowIdx][1] });
+        diamonds.push({ verts: diamondLeft, pos, colorUnit: diamondIntensity });
+      }
+      if (offsetX < maxXOffset - EPS) {
+        squares.push({ verts: poly.topRight, pos, colorUnit: surroundIntensity[rowIdx][1] });
+        squares.push({ verts: poly.bottomRight, pos, colorUnit: surroundIntensity[rowIdx][0] });
+        diamonds.push({ verts: diamondRight, pos, colorUnit: diamondIntensity });
+      }
+    }
+  }
+  return { squares, diamonds };
+}
+
+// =========================================================================
+// Canvas drawing
+// =========================================================================
+function drawScene(ctx, w, h, illusionTypeNum, subCond, adjustedInt){
+  ctx.save();
+  ctx.fillStyle = pageBackgroundFor(illusionTypeNum);
+  ctx.fillRect(0, 0, w, h);
+
+  const toPx = (xNorm, yNorm) => {
+    const flip = (illusionTypeNum === 3) ? -1 : 1; // Argyle is drawn upside-down relative to the others
+    return [w / 2 + xNorm * h, h / 2 - flip * yNorm * h];
+  };
+
+  function fillPoly(vertsNorm, posNorm, cssColor){
+    ctx.beginPath();
+    vertsNorm.forEach((v, i) => {
+      const [px, py] = toPx(v[0] + posNorm[0], v[1] + posNorm[1]);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.closePath();
+    ctx.fillStyle = cssColor;
+    ctx.fill();
+  }
+  function strokeLine(vertsNorm, posNorm, cssColor){
+    ctx.beginPath();
+    vertsNorm.forEach((v, i) => {
+      const [px, py] = toPx(v[0] + posNorm[0], v[1] + posNorm[1]);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.strokeStyle = cssColor;
+    ctx.lineWidth = Math.max(1, h * 0.003);
+    ctx.stroke();
+  }
+
+  if (illusionTypeNum === 2) {
+    const scene = buildPlaidScene(subCond, adjustedInt);
+    scene.shapes.forEach(sh => fillPoly(sh.verts, sh.pos, grayFromSigned(sh.colorSigned)));
+  } else if (illusionTypeNum === 3) {
+    const scene = buildArgyleScene(subCond, adjustedInt);
+    scene.shapes.forEach(sh => fillPoly(sh.verts, sh.pos, grayFromSigned(sh.colorSigned)));
+    scene.lines.forEach(ln => strokeLine(ln.verts, ln.pos, grayFromSigned(ln.colorSigned)));
+  } else {
+    const scene = buildBlocksScene(subCond, adjustedInt);
+    scene.squares.forEach(sq => fillPoly(sq.verts, sq.pos, grayFromUnit(sq.colorUnit)));
+    scene.diamonds.forEach(d => fillPoly(d.verts, d.pos, grayFromUnit(d.colorUnit)));
+  }
+  ctx.restore();
+}
+
+// =========================================================================
+// jsPsych plugins (written as plain classes; no dependency on any
+// @jspsych/plugin-* packages, and no reliance on jsPsychModule.ParameterType)
+// =========================================================================
+
+class SubjectInfoPlugin {
+  static info = { name: "subject-info", parameters: {} };
+  constructor(jsPsych){ this.jsPsych = jsPsych; }
+  trial(display_element, trial){
+    display_element.innerHTML = `
+      <div class="card">
+        <h1>PSY389 Exp 1</h1>
+        <p class="muted">Enter session details to begin.</p>
+        <label for="pid-input">Participant ID</label>
+        <input id="pid-input" type="text" autocomplete="off" placeholder="e.g. S01">
+        <label for="illusion-select">Select illusion type</label>
+        <select id="illusion-select">
+          <option value="" disabled selected>Choose one…</option>
+          <option value="1">1 = Blocks</option>
+          <option value="2">2 = Plaid</option>
+          <option value="3">3 = Argyle</option>
+        </select>
+        <div class="err" id="form-err"></div>
+        <button class="btn" id="start-btn">Start</button>
+      </div>`;
+    const startBtn = display_element.querySelector("#start-btn");
+    startBtn.addEventListener("click", () => {
+      const pid = display_element.querySelector("#pid-input").value.trim();
+      const illusionVal = display_element.querySelector("#illusion-select").value;
+      const errEl = display_element.querySelector("#form-err");
+      if (!pid) { errEl.textContent = "Please enter a participant ID."; return; }
+      if (!illusionVal) { errEl.textContent = "Please select an illusion type."; return; }
+      session.participantId = pid;
+      session.illusionTypeNum = Number(illusionVal);
+      requestFullscreenSafe(); // must be called directly from this click handler (user gesture)
+      this.jsPsych.finishTrial({ participant_id: pid, illusion_type: Number(illusionVal) });
+    });
+  }
+}
+
+class InstructionsPlugin {
+  static info = { name: "instructions-space", parameters: {} };
+  constructor(jsPsych){ this.jsPsych = jsPsych; }
+  trial(display_element, trial){
+    display_element.innerHTML = `
+      <div class="card">
+        <p>Welcome! Please refer to the instructions on the slides. You can use the
+        <strong>UP ARROW</strong> key to increase the brightness, and the
+        <strong>DOWN ARROW</strong> key to decrease the brightness.</p>
+        <p>Once you are satisfied with your response, press the <strong>spacebar</strong>,
+        and you will be given a new adjustment to make.</p>
+        <p>Please confirm that you have read these instructions and agree to proceed by
+        pressing the spacebar. The experiment will begin when you press the spacebar.</p>
+        <p class="muted">(Press SPACE to continue)</p>
+      </div>`;
+    const handler = (e) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        window.removeEventListener("keydown", handler);
+        this.jsPsych.finishTrial({});
+      }
+    };
+    window.addEventListener("keydown", handler);
+  }
+}
+
+class BlankPlugin {
+  static info = { name: "blank-iti", parameters: {} };
+  constructor(jsPsych){ this.jsPsych = jsPsych; }
+  trial(display_element, trial){
+    const bg = pageBackgroundFor(session.illusionTypeNum);
+    display_element.innerHTML = `<div style="position:fixed;inset:0;width:100vw;height:100vh;background:${bg};"></div>`;
+    this.jsPsych.pluginAPI.setTimeout(() => this.jsPsych.finishTrial({}), trial.duration || BLANK_MS);
+  }
+}
+
+class IllusionAdjustmentPlugin {
+  static info = { name: "illusion-adjustment", parameters: {} };
+  constructor(jsPsych){ this.jsPsych = jsPsych; }
+  trial(display_element, trial){
+    const illusionTypeNum = session.illusionTypeNum;
+    const condition = trial.condition; // "illusion" or "control"
+    const subCond = condition === "illusion" ? 0 : 1;
+    const trialNumber = trial.trial_number;
+
+    const startFrac = Math.random();     // 0..1, matches original "initialInt"
+    let adjustedInt = (startFrac * 2) - 1; // map to -1..1
+
+    display_element.innerHTML = `
+      <div class="task-wrap">
+        <div class="progress">Trial ${trialNumber} of ${trial.total_trials}</div>
+        <canvas id="illusion-canvas"></canvas>
+        <div class="task-hint">↑ brighter · ↓ darker · SPACE to confirm</div>
+      </div>`;
+    const canvas = display_element.querySelector("#illusion-canvas");
+    const ctx = canvas.getContext("2d");
+    let { cssW, cssH } = sizeCanvasToViewport(canvas, 60);
+
+    let upHeld = false, downHeld = false;
+    let responded = false;
+    let rafId = null;
+    const startTime = performance.now();
+
+    const onResize = () => { ({ cssW, cssH } = sizeCanvasToViewport(canvas, 60)); };
+    window.addEventListener("resize", onResize);
+    document.addEventListener("fullscreenchange", onResize);
+
+    function clamp(v){ return Math.min(1, Math.max(-1, v)); }
+
+    const onKeyDown = (e) => {
+      if (e.code === "ArrowUp") { e.preventDefault(); upHeld = true; }
+      else if (e.code === "ArrowDown") { e.preventDefault(); downHeld = true; }
+      else if (e.code === "Space") {
+        e.preventDefault();
+        if (!responded) {
+          responded = true;
+          endTrial();
+        }
+      }
+    };
+    const onKeyUp = (e) => {
+      if (e.code === "ArrowUp") upHeld = false;
+      else if (e.code === "ArrowDown") downHeld = false;
+    };
+
+    const self = this;
+    function endTrial(){
+      const rt = Math.round(performance.now() - startTime);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("fullscreenchange", onResize);
+      if (rafId) cancelAnimationFrame(rafId);
+
+      const startIntensity = startFrac;               // 0..1
+      const adjustmentResponse = (adjustedInt + 1) / 2; // 0..1
+      const illusionLabel = ILLUSION_LABELS[illusionTypeNum - 1];
+
+      collectedRows.push({
+        timestamp: new Date().toISOString(),
+        trial: trialNumber,
+        subjId: session.participantId,
+        startIntensity: startIntensity,
+        adjustmentResponse: adjustmentResponse,
+        illusionType: illusionLabel,
+        condition: condition,
+        reactionTime: rt
+      });
+
+      self.jsPsych.finishTrial({
+        illusion_type: illusionLabel,
+        condition: condition,
+        start_intensity: startIntensity,
+        adjustment_response: adjustmentResponse,
+        rt: rt
+      });
+    }
+
+    function frame(){
+      if (upHeld) adjustedInt = clamp(adjustedInt + INCREMENT);
+      if (downHeld) adjustedInt = clamp(adjustedInt - INCREMENT);
+      drawScene(ctx, cssW, cssH, illusionTypeNum, subCond, adjustedInt);
+      rafId = requestAnimationFrame(frame);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    drawScene(ctx, cssW, cssH, illusionTypeNum, subCond, adjustedInt);
+    rafId = requestAnimationFrame(frame);
+  }
+}
+
+class EndDownloadPlugin {
+  static info = { name: "end-download", parameters: {} };
+  constructor(jsPsych){ this.jsPsych = jsPsych; }
+  trial(display_element, trial){
+    display_element.innerHTML = `
+      <div class="card">
+        <h1>Thank you for your patience.</h1>
+        <p>The experiment is complete. You can download your session data below.</p>
+        <button class="btn" id="download-btn">Download data (Excel)</button>
+        <div id="download-status"></div>
+      </div>`;
+    display_element.querySelector("#download-btn").addEventListener("click", async () => {
+      const statusEl = display_element.querySelector("#download-status");
+      statusEl.textContent = "Preparing file…";
+      try {
+        await downloadExcel();
+        statusEl.textContent = "Data downloaded.";
+      } catch (err) {
+        statusEl.textContent = "Could not save the file (" + ((err && err.code) || "error") + ").";
+      }
+    });
+  }
+}
+
+// =========================================================================
+// Excel export
+// =========================================================================
+async function downloadExcel(){
+  const header = ["timestamp", "trial", "subj ID", "Start Intensity", "Adjustment Response", "Illusion Type", "Condition", "Reaction Time"];
+  const rows = collectedRows.map(r => [
+    r.timestamp, r.trial, r.subjId, r.startIntensity, r.adjustmentResponse, r.illusionType, r.condition, r.reactionTime
+  ]);
+  const aoa = [header, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Data");
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([wbout], { type: "application/octet-stream" });
+
+  const label = ILLUSION_LABELS[(session.illusionTypeNum || 1) - 1];
+  const pid = session.participantId || "subj";
+  const filename = `${pid}_${label}_psy389exp1.xlsx`;
+
+  if (window.claude && typeof window.claude.use === "function") {
+    let downloads = null;
+    try { downloads = await window.claude.use("downloads"); } catch (e) { downloads = null; }
+    if (downloads) {
+      await downloads.save({ filename, data: blob }); // throws on decline/error — caller handles it
+      return;
+    }
+  }
+  // Not running with the downloads capability available (e.g. hosted
+  // outside claude.ai) -- fall back to a normal browser download.
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// =========================================================================
+// Build and run the timeline
+// =========================================================================
+const jsPsych = initJsPsych({
+  display_element: "jspsych-target"
+});
+
+const conditions = [];
+for (let i = 0; i < N_REPS; i++) { conditions.push("illusion"); conditions.push("control"); }
+const shuffledConditions = jsPsych.randomization.shuffle(conditions);
+const totalTrials = shuffledConditions.length;
+
+const timeline = [];
+timeline.push({ type: SubjectInfoPlugin });
+timeline.push({ type: InstructionsPlugin });
+
+shuffledConditions.forEach((condition, i) => {
+  timeline.push({
+    type: IllusionAdjustmentPlugin,
+    condition: condition,
+    trial_number: i + 1,
+    total_trials: totalTrials
+  });
+  timeline.push({ type: BlankPlugin, duration: BLANK_MS });
+});
+
+timeline.push({ type: EndDownloadPlugin });
+
+jsPsych.run(timeline);
+</script>
+</body>
+</html>
