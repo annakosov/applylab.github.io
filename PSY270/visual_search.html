@@ -74,6 +74,12 @@ const COLOR_TARGET = '#0072B2';      // blue -- target stimulus, "present" data 
 const COLOR_DISTRACTOR = '#E69F00';  // orange -- distractor stimulus, "absent" data series
 const COLOR_INCORRECT = '#D55E00';   // vermillion -- incorrect feedback
 
+// --- Inattentional blindness probe (unexpected-object check) ---
+const GORILLA_EMOJI = '🦍';
+const GORILLA_PROBE_ENABLED = true;   // probe is on; shows a gorilla on the last trial
+const GORILLA_PROBE_DISPLAY_MS = 400;  // how long the probe  stays on screen
+let gorillaProbeTriggered = false;     // tracks whether the probe has fired this session
+
 // Fill this in with your own project's config (Firebase console -> Project
 // settings -> General -> Your apps -> SDK setup and configuration -> Config).
 // Leave apiKey as the placeholder to fall back to browser localStorage only.
@@ -187,6 +193,18 @@ function generateDisplay(type, presence, setSize) {
     <p style="margin-top:18px;font-size:16px;">Press <b>&larr;</b> if the <span style="color:${COLOR_TARGET};">blue circle</span> is absent &nbsp;|&nbsp; <b>&rarr;</b> if it is present</p>`;
 
   return html;
+}
+
+// Overlays a gorilla emoji onto the final trial's display for an
+// inattentional-blindness check.
+function insertGorillaProbe(html, trialIndex, totalTrials) {
+  if (!GORILLA_PROBE_ENABLED) return html;
+  if (trialIndex !== totalTrials - 1) return html;
+  gorillaProbeTriggered = true;
+  const left = Math.random() * (DISPLAY_SIZE - ITEM_SIZE);
+  const top = Math.random() * (DISPLAY_SIZE - ITEM_SIZE);
+  const probeHtml = `<div style="position:absolute;left:${left}px;top:${top}px;font-size:28px;">${GORILLA_EMOJI}</div>`;
+  return html.replace('</div>', probeHtml + '</div>');
 }
 
 /* ============================================================
@@ -345,6 +363,12 @@ function summarize(dataCollection) {
     });
   });
   return summary;
+}
+
+// For inattentional blindness probe: Tags a session with whether the participant reported noticing the
+// gorilla probe.
+function recordGorillaNoticeResponse(noticed) {
+  return { gorillaProbeTriggered, gorillaProbeNoticed: noticed };
 }
 
 function loadGroupData() {
