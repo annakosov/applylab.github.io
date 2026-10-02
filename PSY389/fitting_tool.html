@@ -234,6 +234,7 @@
         <button class="icon-btn" id="removeRowBtn" title="Remove last row">&minus;</button>
         <label class="field-label"><br>Add/remove rows</label>
       </div>
+      <button class="secondary small" id="clearDataBtn" style="margin-top:8px; width:100%;" title="Clear all data rows">Clear Data</button>
       <div class="paste-hint">Tip: copy a two-column table from a spreadsheet and paste directly into any cell. New rows will be added automatically.</div>
 
       <hr class="divider">
@@ -440,6 +441,15 @@
     if (dataRows.length > 0) dataRows.pop();
     if (dataRows.length === 0) dataRows.push({x:0, y:0});
     renderTable();
+  });
+  el('clearDataBtn').addEventListener('click', () => {
+    dataRows = [{x:0, y:0}];
+    lastFit = null;
+    renderTable();
+    renderPlot();
+    pseReadout.textContent = '\u2014';
+    p25Readout.textContent = '\u2014';
+    p75Readout.textContent = '\u2014';
   });
 
   // ---------------------------------------------------------------
