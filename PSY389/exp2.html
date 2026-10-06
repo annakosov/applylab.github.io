@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Signal Timing Spin — Rotation Experiment</title>
+<script src="https://cdn.jsdelivr.net/npm/jspsych@8.2.1/dist/index.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{ --bg:#14161a; --panel:#1c1f26; --text:#e8e9ec; --muted:#9aa0ab; --accent:#6fb1ff; --border:#2c313b; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--text); width:100%; height:100%; overflow:hidden; }
+  body{ font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; position:fixed; inset:0;
+        display:flex; align-items:center; justify-content:center; }
+  #jspsych-target, .jspsych-display-element{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:32px 36px; max-width:720px; margin:0 auto; }
+  .card h1{ font-size:2rem; font-weight:600; margin:0 0 14px; }
+  .card p{ line-height:1.6; font-size:1.5rem; margin:0 0 .8em; }
+  .card .muted{ color:var(--muted); font-size:1.2rem; }
+  label{ display:block; margin:18px 0 6px; font-size:.95rem; color:var(--muted); }
+  input[type="text"], select{ width:100%; padding:10px 12px; font-size:1.2rem; border-radius:6px;
+        border:1px solid var(--border); background-color:#0f1115; color:var(--text); }
+  .btn{ display:inline-block; margin-top:22px; padding:10px 22px; font-size:1.3rem; font-weight:600; border-radius:6px;
+        border:1px solid var(--accent); background:var(--accent); color:#0c1116; cursor:pointer; }
+  .err{ color:#ff8080; font-size:1.2rem; min-height:1.2em; margin-top:4px; }
+  .stage{ position:fixed; inset:0; background:#000; cursor:none; display:flex; align-items:center; justify-content:center;
+          color:#fff; font-size:2.2rem; }
+  .stage canvas{ display:block; }
+  #download-status{ margin-top:14px; font-size:1.3rem; color:var(--muted); min-height:1.3em; }
+</style>
+</head>
+<body>
+<div id="jspsych-target"></div>
+<script>
+/* Port of Experiment2_SignalTimingSpin.m (Psychtoolbox) to jsPsych.
+   A white bar rotates 180 deg over 60 frames (60 Hz timing, time-based so it also
+   holds on 120/144 Hz displays); a grey bar is drawn behind it with its angle
+   shifted by a lag (frames). Observer reports the white bar's tilt relative to grey. */
+
+const P = {
+  conditions: ['Left Rotation', 'Right Rotation'],
+  instrLabels: ['Left', 'Right'],
+  breakFrequency: 50,
+  respKeys: ['ArrowLeft', 'ArrowRight'],
+  scrnWidthCm: 52.5, viewDistCm: 43,
+  framesPerRotation: 60, frameMs: 1000 / 60,
+  ITI: 1000, feedbackMs: 500,
+  dotSize: 3, fixSize: 0.2,
+  innerColor: 'rgb(255,255,255)', outerColor: 'rgb(20,20,20)'
+};
+const session = {};      // subject ID, rotation (0 left / 1 right), practice flag, angle step, lagSign
+const rows = [];         // one row per completed trial (Excel export)
+let exitExp = false;
+
+const pad = (n, l = 2) => String(n).padStart(l, '0');
+function stamp(d = new Date(), fmt = 'mm.dd.yyyy HH.MM.SS.FFF'){ // same layout as the MATLAB datestr
+  return `${pad(d.getMonth()+1)}.${pad(d.getDate())}.${d.getFullYear()} ${pad(d.getHours())}.${pad(d.getMinutes())}.${pad(d.getSeconds())}.${pad(d.getMilliseconds(),3)}`;
+}
+function fullscreen(on){
+  try {
+    if (on) { const f = document.documentElement.requestFullscreen; if (f) f.call(document.documentElement).catch(() => {}); }
+    else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  } catch (e) {}
+}
+function onKeyOnce(handler){ // keydown listener that removes itself once handler returns true
+  const fn = (e) => { if (handler(e)) window.removeEventListener('keydown', fn); };
+  window.addEventListener('keydown', fn);
+}
+
+/* ---------- plugins ---------- */
+class SettingsPlugin {
+  static info = { name: 'settings', parameters: {} };
+  constructor(js){ this.js = js; }
+  trial(el){
+    el.innerHTML = `<div class="card"><h1>Experiment Settings</h1>
+      <label for="sid">Subject ID</label><input id="sid" type="text" value="S00" autocomplete="off">
+      <label for="rot">Left or Right rotation</label>
+      <select id="rot"><option value="" disabled selected>Choose one…</option><option value="l">Left</option><option value="r">Right</option></select>
+      <label for="mode">Practice or experiment</label>
+      <select id="mode"><option value="" disabled selected>Choose one…</option><option value="p">Practice</option><option value="e">Experiment</option></select>
+      <div class="err" id="err"></div><button class="btn" id="go">Start</button></div>`;
+    el.querySelector('#go').addEventListener('click', () => {
+      const id = el.querySelector('#sid').value.trim(), rot = el.querySelector('#rot').value, mode = el.querySelector('#mode').value;
+      if (!id) return el.querySelector('#err').textContent = 'Please enter a subject ID.';
+      if (!rot || !mode) return el.querySelector('#err').textContent = 'Please choose a rotation direction and practice/experiment.';
+      Object.assign(session, { subjID: id, rot: rot === 'r' ? 1 : 0, prac: mode === 'p' });
+      fullscreen(true); // must be triggered by this click
+      this.js.finishTrial({ subj_id: id, rotation: P.conditions[session.rot], practice: session.prac });
+    });
+  }
+}
+
+class InstructionPlugin {
+  static info = { name: 'instruction', parameters: {} };
+  constructor(js){ this.js = js; }
+  trial(el, t){
+    const body = session.instr[t.index].split('\n\n').map(s => `<p>${s}</p>`).join('');
+    el.innerHTML = `<div class="card">${body}<p class="muted">Press the spacebar to continue.</p></div>`;
+    onKeyOnce((e) => {
+      if (e.code !== 'Space' && e.code !== 'Escape') return false;
+      e.preventDefault(); if (e.code === 'Escape') exitExp = true;
+      this.js.finishTrial({}); return true;
+    });
+  }
+}
+
+class BlankPlugin {
+  static info = { name: 'blank', parameters: {} };
+  constructor(js){ this.js = js; }
+  trial(el, t){
+    el.innerHTML = '<div class="stage"></div>';
+    this.js.pluginAPI.setTimeout(() => this.js.finishTrial({}), t.duration);
+  }
+}
+
+class SpinPlugin {
+  static info = { name: 'spin-trial', parameters: {} };
+  constructor(js){ this.js = js; }
+  trial(el, t){
+    t = { delay: session.list[t.index], trial_number: t.index + 1 };
+    const w = innerWidth, h = innerHeight, dpr = devicePixelRatio || 1;
+    el.innerHTML = '<div class="stage"><canvas></canvas></div>';
+    const cv = el.querySelector('canvas');
+    cv.style.width = w + 'px'; cv.style.height = h + 'px'; cv.width = w * dpr; cv.height = h * dpr;
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const scrnDeg = 2 * Math.atan(0.5 * P.scrnWidthCm / P.viewDistCm) * 180 / Math.PI;
+    const ppd = w / scrnDeg; // pixels per degree of visual angle
+
+    // angle lists: row 0 = white (inner) bar, row 1 = grey (outer) bar, circularly shifted by lag
+    const N = session.angles.length, k = session.lagSign * t.delay;
+    const outer = new Array(N);
+    session.angles.forEach((a, i) => { outer[(((i + k) % N) + N) % N] = a; });
+    const timestamp = stamp();
+    const trialAngle = session.lagSign * session.step * t.delay;
+
+    const bar = (ang, bw, bh, col) => { ctx.save(); ctx.translate(w/2, h/2); ctx.rotate(ang * Math.PI / 180);
+      ctx.fillStyle = col; ctx.fillRect(-bw*ppd/2, -bh*ppd/2, bw*ppd, bh*ppd); ctx.restore(); };
+    const fix = () => { const f = P.fixSize * ppd / 2; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(w/2 - f, h/2); ctx.lineTo(w/2 + f, h/2); ctx.moveTo(w/2, h/2 - f); ctx.lineTo(w/2, h/2 + f); ctx.stroke(); };
+    const clear = () => { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h); };
+    const drawFrame = (i) => { clear();
+      bar(outer[i], 2 * P.dotSize, P.dotSize, P.outerColor);        // grey bar (6 x 3 deg)
+      bar(session.angles[i], P.dotSize, 0.5 * P.dotSize, P.innerColor); // white bar (3 x 1.5 deg)
+      fix(); };
+
+    let t0 = null, last = -1, phase = 0, trialStart = 0, raf;
+    const tick = (now) => {
+      if (t0 === null) t0 = now;
+      const i = Math.floor((now - t0) / P.frameMs);
+      if (i >= N) { clear(); fix(); trialStart = performance.now(); phase = 1; return; } // animation over: wait for response
+      if (i !== last) { drawFrame(i); last = i; }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    const onKey = (e) => {
+      if (phase !== 1 || e.repeat) return; // ignore keys during animation
+      const finish = (resp, rt) => {
+        window.removeEventListener('keydown', onKey); cancelAnimationFrame(raf);
+        if (resp !== null) {
+          const delayMs = Math.round(1000 * t.delay / 60);
+          const correct = (delayMs <= 0 && resp === 0) || (delayMs >= 0 && resp === 1);
+          session.lastCorrect = correct;
+          rows.push({ cells: [timestamp, t.trial_number, session.subjID, P.conditions[session.rot], trialAngle, resp, rt], correct });
+        }
+        this.js.finishTrial(resp === null ? {} : { delay_frames: t.delay, angle: trialAngle, response: resp, rt });
+      };
+      if (e.code === 'Escape') { e.preventDefault(); exitExp = true; return finish(null); }
+      const resp = P.respKeys.indexOf(e.code);
+      if (resp < 0) return;
+      e.preventDefault();
+      finish(resp, (e.timeStamp - trialStart) / 1000); // RT in seconds, to the key press itself
+    };
+    window.addEventListener('keydown', onKey);
+  }
+}
+
+class FeedbackPlugin {
+  static info = { name: 'feedback', parameters: {} };
+  constructor(js){ this.js = js; }
+  trial(el){
+    el.innerHTML = `<div class="stage">${session.lastCorrect ? 'Correct' : 'Incorrect'}</div>`;
+    this.js.pluginAPI.setTimeout(() => this.js.finishTrial({}), P.feedbackMs);
+  }
+}
+
+class BreakPlugin {
+  static info = { name: 'break', parameters: {} };
+  constructor(js){ this.js = js; }
+  trial(el, t){
+    el.innerHTML = `<div class="card"><p>${t.index + 1} out of ${session.list.length} trials completed.</p><p class="muted">Take a short break and press the spacebar to continue.</p></div>`;
+    onKeyOnce((e) => { if (e.code !== 'Space') return false; e.preventDefault(); this.js.finishTrial({}); return true; });
+  }
+}
+
+class EndPlugin {
+  static info = { name: 'end-download', parameters: {} };
+  constructor(js){ this.js = js; }
+  trial(el){
+    fullscreen(false);
+    let msg = exitExp ? 'The experiment was ended early.' : (session.prac ? 'You are now done with the practice!' : 'You are now done with this condition!');
+    if (session.prac && !exitExp && rows.length) {
+      const acc = rows.filter(r => r.correct).length / rows.length;
+      msg += ` Overall accuracy: ${(Math.round(acc * 10000) / 100)}%`;
+    }
+    el.innerHTML = `<div class="card"><h1>Thank you for your patience.</h1><p>${msg}</p>
+      <p class="muted">You can download your session data below.</p>
+      <button class="btn" id="download-btn">Download data (Excel)</button><div id="download-status"></div></div>`;
+    el.querySelector('#download-btn').addEventListener('click', async () => {
+      const st = el.querySelector('#download-status'); st.textContent = 'Preparing file…';
+      try { await downloadExcel(); st.textContent = 'Data downloaded.'; }
+      catch (err) { st.textContent = 'Could not save the file (' + ((err && err.code) || 'error') + ').'; }
+    });
+  }
+}
+
+/* ---------- Excel export (same columns as the MATLAB .xlsx) ---------- */
+async function downloadExcel(){
+  const header = ['Timestamp', 'Trial', 'Subj ID', 'Rotation Direction', 'Angle of White Bar (Deg)', 'Response (left = 0, right = 1)', 'Reaction Time (s)'];
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows.map(r => r.cells)]);
+  ws['!cols'] = [{ wch: 24 }, { wch: 7 }, { wch: 10 }, { wch: 18 }, { wch: 24 }, { wch: 30 }, { wch: 18 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  const blob = new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/octet-stream' });
+  const d = new Date();
+  const filename = `${session.subjID}_${P.conditions[session.rot].toUpperCase().replace(' ', '_')}_${session.prac ? 'PRACTICE' : 'EXP'}_Experiment2_SignalTimingSpin_${pad(d.getMonth()+1)}${pad(d.getDate())}${d.getFullYear()}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.xlsx`;
+
+  if (window.claude && typeof window.claude.use === 'function') {
+    let dl = null;
+    try { dl = await window.claude.use('downloads'); } catch (e) { dl = null; }
+    if (dl) { await dl.save({ filename, data: blob }); return; }
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement('a'); // plain browser fallback
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+/* ---------- timeline ---------- */
+const jsPsych = initJsPsych({ display_element: 'jspsych-target' });
+// conditional_function only works on timeline nodes, so each trial is wrapped in its own one-trial timeline
+const cond = (n, fn) => ({ timeline: [n], conditional_function: fn });
+const guard = (n, i) => cond(n, () => !exitExp && (i === undefined || i < session.list.length));
+
+// Settings are only known after the first screen, so everything that depends on them is prepared here.
+function prepare(){
+  const N = P.framesPerRotation, left = session.rot === 0;
+  const lin = (a, b, n) => Array.from({ length: n }, (_, i) => a + (b - a) * i / (n - 1));
+  session.angles = (left ? lin(180, 0, N + 1) : lin(0, 180, N + 1)).slice(0, N); // drop final sample, as in MATLAB
+  session.step = session.angles[1] - session.angles[0];
+  session.lagSign = left ? -1 : 1;
+  const delays = session.prac ? [-4, 4] : [-5, -4, -2, -1, 0, 1, 2, 4, 5];
+  const nReps = session.prac ? 4 : 20;
+  session.list = jsPsych.randomization.shuffle(Array(nReps).fill(delays).flat()); // balanced + randomized
+  session.instr = [
+    `Welcome! On each trial, you will see a white bar rotating to the ${P.instrLabels[session.rot].toUpperCase()}`,
+    'Keep your eyes on the cross in the middle throughout the experiment, and report which way the WHITE bar is tilted, relative to the grey bar.',
+    'Press the LEFT ARROW key if it appears tilted to the left, and the RIGHT ARROW key if it appears tilted to the right. Wait for the animation to finish before pressing a key.\n\nBe sure to report the direction of its tilt, NOT its motion direction.',
+    'Please confirm that you have read these instructions and agree to proceed by pressing the spacebar. The experiment will begin when you press the spacebar.'
+  ];
+}
+
+const MAX_TRIALS = 9 * 20; // largest possible block; unused trial slots skip themselves
+const timeline = [{ type: SettingsPlugin, on_finish: prepare }];
+for (let i = 0; i < 4; i++) timeline.push(guard({ type: InstructionPlugin, index: i }));
+for (let i = 0; i < MAX_TRIALS; i++) {
+  timeline.push(guard({ type: BlankPlugin, duration: P.ITI }, i));
+  timeline.push(guard({ type: SpinPlugin, index: i }, i));
+  timeline.push(cond({ type: FeedbackPlugin }, () => !exitExp && session.prac && i < session.list.length));
+  timeline.push(cond({ type: BreakPlugin, index: i }, () =>
+    !exitExp && i < session.list.length && (i + 1) % P.breakFrequency === 0 && i + 1 !== session.list.length));
+}
+timeline.push({ type: EndPlugin });
+jsPsych.run(timeline);
+</script>
+</body>
+</html>
