@@ -99,6 +99,16 @@
   .table-scroll{ overflow:visible; }
   .row-idx{ color:var(--ink-faint); padding:0 0 0 10px !important; width:24px; font-size:12.5px; font-weight:600; }
 
+  table.data-table td input.invalid{
+    background:rgba(224,101,79,0.18); box-shadow:inset 0 0 0 2px #E0654F; color:#FFB3A5;
+  }
+  .data-error{
+    display:none; margin-top:10px; padding:9px 11px; border-radius:7px;
+    background:rgba(224,101,79,0.14); border:1.5px solid #E0654F; color:#FFB3A5;
+    font-size:13.5px; font-weight:600; line-height:1.4;
+  }
+  .data-error.show{ display:block; }
+
   .paste-hint{
     font-size:12.5px; color:var(--ink-faint); margin-top:8px; line-height:1.5; font-weight:500;
   }
@@ -235,6 +245,7 @@
         <label class="field-label"><br>Add/remove rows</label>
       </div>
       <button class="secondary small" id="clearDataBtn" style="margin-top:8px; width:100%;" title="Clear all data rows">Clear Data</button>
+      <div class="data-error" id="dataError" role="alert"></div>
       <div class="paste-hint">Tip: copy a two-column table from a spreadsheet and paste directly into any cell. New rows will be added automatically.</div>
 
       <hr class="divider">
@@ -379,11 +390,14 @@
       const yTd = document.createElement('td');
       const yInput = document.createElement('input');
       yInput.type = 'number';
-      yInput.step = 'any';
+      yInput.min = '0';
+      yInput.max = '1';
+      yInput.step = '0.01';
       yInput.value = Number.isFinite(row.y) ? row.y : '';
       yInput.addEventListener('input', () => {
         dataRows[i].y = parseFloat(yInput.value);
         syncXLimitsToData();
+        refreshValidation();
       });
       yInput.addEventListener('paste', (e) => handleTablePaste(e, i, 1));
       yTd.appendChild(yInput);
@@ -391,6 +405,29 @@
 
       tableBody.appendChild(tr);
     });
+    refreshValidation();
+  }
+
+  // Response proportions must lie in [0, 1]
+  const RANGE_MSG = 'Response proportions must be between 0 and 1. Please correct the highlighted value(s).';
+  const dataError = document.getElementById('dataError');
+  function outOfRangeRows(){
+    const bad = [];
+    dataRows.forEach((r, i) => {
+      if (Number.isFinite(r.y) && (r.y < 0 || r.y > 1)) bad.push(i);
+    });
+    return bad;
+  }
+  function showDataError(msg){
+    dataError.textContent = msg || '';
+    dataError.classList.toggle('show', !!msg);
+  }
+  function refreshValidation(){
+    const bad = outOfRangeRows();
+    const inputs = tableBody.querySelectorAll('tr td:nth-child(3) input');
+    inputs.forEach((inp, i) => inp.classList.toggle('invalid', bad.includes(i)));
+    showDataError(bad.length ? RANGE_MSG : '');
+    return bad.length === 0;
   }
 
   function handleTablePaste(e, rowIndex, colIndex){
@@ -537,6 +574,10 @@
   // Fitting
   // ---------------------------------------------------------------
   function fitCurve(){
+    if (outOfRangeRows().length){
+      lastFit = null;
+      return {error: RANGE_MSG};
+    }
     const pts = dataRows.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y));
     if (pts.length < 2){
       lastFit = null;
@@ -758,6 +799,7 @@
   function updatePlot(){
     const result = fitCurve();
     renderPlot();
+    showDataError(result.error || '');
     if (result.error){
       pseReadout.textContent = '\u2014';
       p25Readout.textContent = '\u2014';
